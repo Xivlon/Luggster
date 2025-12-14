@@ -1,0 +1,21 @@
+name = "luggagelink-backend"
+main = "server.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables (set DATABASE_URL via wrangler secret)
+# wrangler secret put DATABASE_URL
+
+[vars]
+ENVIRONMENT = "production"
+
+# R2 Storage for photo uploads
+[[r2_buckets]]
+binding = "R2_PHOTOS"
+bucket_name = "luggster-photos"
+
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+[env.staging]
+vars = { ENVIRONMENT = "staging" }
