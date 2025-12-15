@@ -257,7 +257,9 @@ adminRoutes.put('/shipments/:id/assign', async (c) => {
     return c.json({ error: err.message }, 500);
   }
 });
-
+authRoutes.get('/signup', (c) => {
+  return c.json({ message: "Alive! The API is connected. Now send a POST request." });
+});
 // ============================================================================
 // 4. DRIVER ROUTES (Placeholder)
 // ============================================================================
