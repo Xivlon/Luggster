@@ -9,11 +9,9 @@ export const shipmentStatusEnum = pgEnum('shipment_status', ['PENDING', 'ASSIGNE
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),
+  firstName: varchar('first_name', { length: 100 }).notNull(),
+  lastName: varchar('last_name', { length: 100 }).notNull(),
   password: varchar('password', { length: 255 }), 
-  
-  // ✅ RESTORED: Using single 'name' to match your SQL and Routes
-  name: varchar('name', { length: 255 }),
-  
   phone: varchar('phone', { length: 50 }),
   userType: userTypeEnum('user_type').notNull().default('customer'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
