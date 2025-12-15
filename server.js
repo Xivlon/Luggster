@@ -6,7 +6,7 @@ import { etag } from 'hono/etag';
 import { shipmentRoutes, driverRoutes, adminRoutes } from './routes.js';
 import { getPhoto } from './storage.js';
 import { db } from './db.js';
-import { locations } from './schema.js;
+import { locations } from './schema.js';
 // ============================================================================
 // FRONTEND HTML TEMPLATES
 // ============================================================================
