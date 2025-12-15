@@ -19,23 +19,22 @@ const dispatcherHtml = `<!DOCTYPE html>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <style>
         #map { height: 350px; width: 100%; border-radius: 0.5rem; z-index: 1; }
         .leaflet-control-geocoder { z-index: 1000 !important; }
-        
-        /* Override the default Geocoder icon */
+
+        /* OVERRIDE: LUCIDE SEARCH ICON */
         .leaflet-control-geocoder-icon {
-            background-image: none !important;
-            font-family: Arial, sans-serif;
-            font-size: 1.25rem;
-            line-height: 1.25rem;
-            text-align: center;
-            position: relative;
-            top: -2px;         }
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 18px 18px; /* Adjust icon size here */
+            border-radius: 0.5rem;
+        }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen p-6 font-sans text-green-800">
@@ -44,7 +43,7 @@ const dispatcherHtml = `<!DOCTYPE html>
         <div class="flex justify-between items-center mb-8">
             <div class="flex items-center gap-3">
                 <div class="bg-green-600 text-white p-2 rounded-lg">
-                    <i class="ph ph-truck text-2xl"></i>
+                    <i data-lucide="truck" class="w-8 h-8"></i>
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold text-slate-900">Dispatcher Console</h1>
@@ -64,7 +63,7 @@ const dispatcherHtml = `<!DOCTYPE html>
                 
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-green-200">
                     <h2 class="text-lg font-bold mb-4 flex items-center gap-2 border-b pb-2 border-green-100">
-                        <i class="ph ph-user text-green-600"></i> Customer Information
+                        <i data-lucide="user" class="text-green-600 w-5 h-5"></i> Customer Information
                     </h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="md:col-span-2">
@@ -84,7 +83,7 @@ const dispatcherHtml = `<!DOCTYPE html>
 
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-green-200">
                     <h2 class="text-lg font-bold mb-4 flex items-center gap-2 border-b pb-2 border-slate-100">
-                        <i class="ph ph-suitcase text-green-600"></i> Luggage Details
+                        <i data-lucide="briefcase" class="text-green-600 w-5 h-5"></i> Luggage Details
                     </h2>
                     
                     <div class="overflow-hidden rounded-lg border border-green-200">
@@ -135,12 +134,12 @@ const dispatcherHtml = `<!DOCTYPE html>
 
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-green-200">
                     <h2 class="text-lg font-bold mb-4 flex items-center justify-between border-b pb-2 border-slate-100">
-                        <span class="flex items-center gap-2"><i class="ph ph-map-pin text-green-600"></i> Route Selection</span>
+                        <span class="flex items-center gap-2"><i data-lucide="map-pin" class="text-green-600 w-5 h-5"></i> Route Selection</span>
                         <span class="text-xs font-normal text-slate-400">Powered by OpenStreetMap</span>
                     </h2>
 
                     <div class="bg-blue-50 text-blue-800 text-sm p-3 rounded-lg mb-4 flex items-start gap-2">
-                        <i class="ph ph-info text-lg"></i>
+                        <i data-lucide="info" class="w-5 h-5 mt-0.5"></i>
                         <div>
                             <strong>Use the Search Icon (🔍) on the map</strong> to find locations.
                             <ul class="list-disc list-inside text-xs mt-1">
@@ -246,7 +245,7 @@ const dispatcherHtml = `<!DOCTYPE html>
 
                     <button onclick="createShipment()" id="submitBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-200 transition-all flex items-center justify-center gap-2">
                         <span>Create Shipment</span>
-                        <i class="ph ph-paper-plane-right font-bold text-lg"></i>
+                        <i data-lucide="send" class="w-5 h-5"></i>
                     </button>
 
                     <div id="resultMsg" class="mt-4 hidden p-3 rounded-lg text-sm text-center"></div>
@@ -264,6 +263,9 @@ const dispatcherHtml = `<!DOCTYPE html>
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
     <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+    
         // --- CONFIG & INIT ---
         const PLATFORM_FEE = 5.73;
         let currentDiscount = 0;
@@ -396,7 +398,7 @@ const dispatcherHtml = `<!DOCTYPE html>
                 activePromoCode = "FLY10";
                 showSuccess("Code Applied: 10% OFF");
             } else {
-                msg.textContent = "Invalid Code";
+                msg.textContent = "❌ Invalid Code";
                 msg.className = "text-xs font-bold text-red-600 mt-1 block";
             }
 
@@ -408,7 +410,7 @@ const dispatcherHtml = `<!DOCTYPE html>
             }
 
             function showSuccess(text) {
-                msg.textContent = text;
+                msg.textContent = "✅ " + text;
                 msg.className = "text-xs font-bold text-green-600 mt-1 block";
             }
         }
@@ -473,13 +475,13 @@ const dispatcherHtml = `<!DOCTYPE html>
                     phone: document.getElementById('custPhone').value
                 },
                 luggageId: crypto.randomUUID(),
-                originAirport: "MAP", // Flag for map coords
+                originAirport: "MAP", 
                 destinationAirport: "MAP",
                 pickupLatitude: parseFloat(lat1),
                 pickupLongitude: parseFloat(lng1),
                 dropoffLatitude: parseFloat(lat2),
                 dropoffLongitude: parseFloat(lng2),
-                pickupAddress: document.getElementById('originInput').value, // Send raw address text
+                pickupAddress: document.getElementById('originInput').value,
                 dropoffAddress: document.getElementById('destInput').value,
                 pickupAt: new Date(document.getElementById('pickupDate').value + "T" + document.getElementById('pickupTime').value).toISOString(),
                 dropoffBy: new Date(document.getElementById('dropoffDate').value + "T" + document.getElementById('dropoffTime').value).toISOString(),
@@ -498,21 +500,21 @@ const dispatcherHtml = `<!DOCTYPE html>
                 const data = await res.json();
 
                 if (res.ok) {
-                    msg.innerHTML = '<b>Success!</b> Shipment #' + data.id.slice(0,8) + ' Created.';
+                    msg.innerHTML = '✅ <b>Success!</b> Shipment #' + data.id.slice(0,8) + ' Created.';
                     msg.className = "mt-4 p-3 rounded-lg text-sm text-center bg-green-100 text-green-800 border border-green-200 block";
                     
-                    // Reset Basic Fields (keep logic)
                     document.getElementById('custName').value = "";
                     document.getElementById('internalNotes').value = "";
                 } else {
                     throw new Error(data.error || "Server rejected request");
                 }
             } catch (err) {
-                msg.innerHTML = err.message;
+                msg.innerHTML = '❌ ' + err.message;
                 msg.className = "mt-4 p-3 rounded-lg text-sm text-center bg-red-100 text-red-800 border border-red-200 block";
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<span>Create Shipment</span><i class="ph ph-paper-plane-right font-bold text-lg"></i>';
+                btn.innerHTML = '<span>Create Shipment</span><i data-lucide="send" class="w-5 h-5 ml-2"></i>';
+                lucide.createIcons();
             }
         }
     </script>
