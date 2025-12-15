@@ -76,7 +76,14 @@ export const shipments = pgTable('shipments', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
-
+export const locations = pgTable('locations', {
+  code: varchar('code', { length: 10 }).primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull(), // AIRPORT, STORAGE
+  latitude: real('latitude').notNull(),
+  longitude: real('longitude').notNull(),
+  address: text('address')
+});
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   driverProfile: one(driverProfiles, {
