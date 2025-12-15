@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, desc, sql, and } from 'drizzle-orm';
+import { eq, desc, sql, and, or } from 'drizzle-orm';
 import { db } from './db.js';
 import { shipments, users, driverProfiles, locations } from './schema.js'; 
 
@@ -12,7 +12,8 @@ const authRoutes = new Hono();
 authRoutes.post('/signup', async (c) => {
   try {
     const body = await c.req.json();
-    const { email, password, firstName, lastName, phone, type, vehicleType, vehiclePlate } = body;
+    // Add 'username' to the list of things we read
+    const { email, password, firstName, lastName, phone, type, vehicleType, vehiclePlate, username } = body;
 
     // 1. Check if user exists
     const existing = await db.select().from(users).where(eq(users.email, email));
@@ -20,10 +21,17 @@ authRoutes.post('/signup', async (c) => {
       return c.json({ error: 'User already exists' }, 409);
     }
 
+    // NEW: Check if username is taken (only if they provided one)
+    if (username) {
+        const taken = await db.select().from(users).where(eq(users.username, username));
+        if (taken.length > 0) return c.json({ error: 'Username already taken' }, 409);
+    }
+
     // 2. Create User
     const newUser = await db.insert(users).values({
       email,
       password, // Note: In a real app, hash this password!
+      username: username || null, // 👈 Save the username!
       firstName: firstName || 'New',
       lastName: lastName || 'User',
       phone,
@@ -54,21 +62,47 @@ authRoutes.post('/signup', async (c) => {
 // POST /api/auth/login
 authRoutes.post('/login', async (c) => {
   try {
-    const { email, password } = await c.req.json();
+    const body = await c.req.json();
+    
+    // 1. SMART INPUT HANDLING
+    // We accept 'email', 'username', or the React Team's 'identifier'
+    // We treat whatever they sent as the "login handle"
+    let loginHandle = body.email || body.username || body.identifier;
 
-    // 1. Find User
-    const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    // Handle the specific array case your Dev Team was sending
+    if (Array.isArray(body) && body.length > 0) {
+        if (body[0] && typeof body[0] === 'object') {
+            loginHandle = body[0].username || body[0].email;
+        }
+    }
+
+    if (!loginHandle) return c.json({ error: 'Missing email or username' }, 400);
+
+    // 2. SMART QUERY: Check if it matches Email OR Username
+    const user = await db.select().from(users)
+      .where(or(
+        eq(users.email, loginHandle), 
+        and(eq(users.username, loginHandle), sql`${users.username} IS NOT NULL`)
+      ))
+      .limit(1);
     
     if (user.length === 0) {
+      return c.json({ error: 'User not found' }, 401);
+    }
+
+    // 3. Password Check
+    // (Note: Your dev team sends { username, password } inside an array sometimes. 
+    // We need to grab the password safely).
+    let inputPassword = body.password;
+    if (Array.isArray(body) && body.length > 0 && body[0] && typeof body[0] === 'object') {
+        inputPassword = body[0].password;
+    }
+
+    if (!inputPassword || user[0].password !== inputPassword) {
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
-    // 2. Check Password (Simple comparison for MVP)
-    if (user[0].password !== password) {
-      return c.json({ error: 'Invalid credentials' }, 401);
-    }
-
-    // 3. If Driver, get Profile Status
+    // 4. If Driver, get Profile
     let driverData = null;
     if (user[0].userType === 'driver') {
       const profile = await db.select().from(driverProfiles).where(eq(driverProfiles.userId, user[0].id));
@@ -81,6 +115,7 @@ authRoutes.post('/login', async (c) => {
         id: user[0].id,
         name: `${user[0].firstName} ${user[0].lastName}`,
         email: user[0].email,
+        username: user[0].username, // Return the username too
         type: user[0].userType
       },
       driverProfile: driverData
