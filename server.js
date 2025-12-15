@@ -19,13 +19,23 @@ const dispatcherHtml = `<!DOCTYPE html>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <style>
         #map { height: 350px; width: 100%; border-radius: 0.5rem; z-index: 1; }
         .leaflet-control-geocoder { z-index: 1000 !important; }
+        
+        /* Override the default Geocoder icon */
+        .leaflet-control-geocoder-icon {
+            background-image: none !important;
+            font-family: Arial, sans-serif;
+            font-size: 1.25rem;
+            line-height: 1.25rem;
+            text-align: center;
+            position: relative;
+            top: -2px;         }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen p-6 font-sans text-green-800">
