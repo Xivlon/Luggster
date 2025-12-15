@@ -262,7 +262,7 @@ const dispatcherHtml = `<!DOCTYPE html>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
-    <script>
+   <script>
         // Initialize Lucide Icons
         lucide.createIcons();
     
@@ -287,12 +287,13 @@ const dispatcherHtml = `<!DOCTYPE html>
         checkApiHealth();
 
         // --- MAP SETUP ---
-        const map = L.map('map').setView([40.7128, -74.0060], 11);
+        const map = L.map('map').setView([28.4312, -81.3081], 9); // Default near Orlando
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // Icons
+        // --- ICONS ---
+        // 1. Dynamic Selection Icons (Blue/Green Pins)
         const pickupIcon = L.icon({
             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -304,11 +305,55 @@ const dispatcherHtml = `<!DOCTYPE html>
             iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
         });
 
+        // 2. Special Location Icons (Plane / Box)
+        // We use DivIcons to render Emojis or Custom Shapes easily without images
+        const airportIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: "<div style='background-color:#0ea5e9; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.3); font-size:18px;'>✈️</div>",
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
+
+        const hubIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: "<div style='background-color:#f59e0b; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.3); font-size:18px;'>📦</div>",
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
+
         let pickupMarker = null;
         let dropoffMarker = null;
         let selectionMode = 'pickup';
 
-        // Geocoder
+        // --- LOAD SPECIAL LOCATIONS ---
+        async function loadSpecialLocations() {
+            try {
+                const res = await fetch(window.location.origin + '/api/locations');
+                const data = await res.json();
+                
+                if (data.locations) {
+                    data.locations.forEach(loc => {
+                        const icon = loc.type === 'AIRPORT' ? airportIcon : hubIcon;
+                        const marker = L.marker([loc.latitude, loc.longitude], { icon: icon }).addTo(map);
+                        
+                        // Add Tooltip
+                        marker.bindTooltip(`<b>${loc.code}</b><br>${loc.name}`, { direction: 'top', offset: [0, -10] });
+
+                        // Click Logic: Treat this as a "Selection"
+                        marker.on('click', () => {
+                            // Pass the CODE as the address (e.g., "MCO")
+                            handleMapClick({ latlng: { lat: loc.latitude, lng: loc.longitude } }, loc.code);
+                        });
+                    });
+                }
+            } catch (err) {
+                console.warn("Failed to load special locations:", err);
+            }
+        }
+        loadSpecialLocations();
+
+
+        // --- GEOCODER & CLICK HANDLING ---
         const geocoder = L.Control.geocoder({ defaultMarkGeocode: false })
         .on('markgeocode', function(e) {
             handleMapClick({ latlng: e.geocode.center }, e.geocode.name);
@@ -321,7 +366,10 @@ const dispatcherHtml = `<!DOCTYPE html>
         function handleMapClick(e, addressOverride) {
             const lat = e.latlng.lat;
             const lng = e.latlng.lng;
-            const displayAddress = addressOverride || \`\${lat.toFixed(4)}, \${lng.toFixed(4)}\`;
+            
+            // If addressOverride is short (like "MCO"), use it. Otherwise, use coord string.
+            // Note: In a real app, you'd Reverse Geocode here if addressOverride is null.
+            const displayAddress = addressOverride || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
             if (selectionMode === 'pickup') {
                 if (pickupMarker) map.removeLayer(pickupMarker);
@@ -443,6 +491,9 @@ const dispatcherHtml = `<!DOCTYPE html>
             const lng1 = document.getElementById('pickupLng').value;
             const lat2 = document.getElementById('dropoffLat').value;
             const lng2 = document.getElementById('dropoffLng').value;
+            
+            const rawOrigin = document.getElementById('originInput').value;
+            const rawDest = document.getElementById('destInput').value;
 
             if (!name) return alert("Customer Name is required");
             if (!lat1 || !lat2) return alert("Please select both Pickup and Dropoff points on the map.");
@@ -460,12 +511,18 @@ const dispatcherHtml = `<!DOCTYPE html>
             
             const notes = [
                 "CUSTOMER: " + name + " | " + document.getElementById('custEmail').value + " | " + document.getElementById('custPhone').value,
-                "PICKUP ADDRESS: " + document.getElementById('originInput').value,
-                "DROPOFF ADDRESS: " + document.getElementById('destInput').value,
+                "PICKUP: " + rawOrigin,
+                "DROPOFF: " + rawDest,
                 "LUGGAGE: " + bagString,
                 "NOTES: " + document.getElementById('internalNotes').value,
                 activePromoCode ? "PROMO: " + activePromoCode : ""
             ].join('\\n');
+
+            // INTELLIGENT ROUTE NAMING
+            // If the input is short (e.g. "MCO"), save it as the airport code.
+            // If it's long, save as "MAP" so the Admin knows to look at the address.
+            const originCode = rawOrigin.length <= 5 ? rawOrigin : "MAP";
+            const destCode = rawDest.length <= 5 ? rawDest : "MAP";
 
             const payload = {
                 customerId: crypto.randomUUID(), 
@@ -475,14 +532,17 @@ const dispatcherHtml = `<!DOCTYPE html>
                     phone: document.getElementById('custPhone').value
                 },
                 luggageId: crypto.randomUUID(),
-                originAirport: "MAP", 
-                destinationAirport: "MAP",
+                
+                // SAVE CODES HERE
+                originAirport: originCode, 
+                destinationAirport: destCode,
+                
                 pickupLatitude: parseFloat(lat1),
                 pickupLongitude: parseFloat(lng1),
                 dropoffLatitude: parseFloat(lat2),
                 dropoffLongitude: parseFloat(lng2),
-                pickupAddress: document.getElementById('originInput').value,
-                dropoffAddress: document.getElementById('destInput').value,
+                pickupAddress: rawOrigin, 
+                dropoffAddress: rawDest,
                 pickupAt: new Date(document.getElementById('pickupDate').value + "T" + document.getElementById('pickupTime').value).toISOString(),
                 dropoffBy: new Date(document.getElementById('dropoffDate').value + "T" + document.getElementById('dropoffTime').value).toISOString(),
                 priceCents: Math.round(parseFloat(document.getElementById('finalPrice').value) * 100),
@@ -505,6 +565,7 @@ const dispatcherHtml = `<!DOCTYPE html>
                     
                     document.getElementById('custName').value = "";
                     document.getElementById('internalNotes').value = "";
+                    // Reset map selection if desired
                 } else {
                     throw new Error(data.error || "Server rejected request");
                 }
