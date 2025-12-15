@@ -10,7 +10,8 @@ export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),
   password: varchar('password', { length: 255 }), // Hashed password, nullable for customers created via dispatcher
-  name: varchar('name', { length: 255 }),
+  firstName: varchar('first_name', { length: 100 }).notNull(),
+  lastName: varchar('last_name', { length: 100 }).notNull(),
   phone: varchar('phone', { length: 50 }),
   userType: userTypeEnum('user_type').notNull().default('customer'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
