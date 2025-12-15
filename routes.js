@@ -71,7 +71,9 @@ authRoutes.post('/login', async (c) => {
 
     // Handle the specific array case your Dev Team was sending
     if (Array.isArray(body) && body.length > 0) {
-        loginHandle = body[0].username || body[0].email;
+        if (body[0] && typeof body[0] === 'object') {
+            loginHandle = body[0].username || body[0].email;
+        }
     }
 
     if (!loginHandle) return c.json({ error: 'Missing email or username' }, 400);
@@ -80,7 +82,7 @@ authRoutes.post('/login', async (c) => {
     const user = await db.select().from(users)
       .where(or(
         eq(users.email, loginHandle), 
-        eq(users.username, loginHandle)
+        and(eq(users.username, loginHandle), sql`${users.username} IS NOT NULL`)
       ))
       .limit(1);
     
@@ -92,9 +94,11 @@ authRoutes.post('/login', async (c) => {
     // (Note: Your dev team sends { username, password } inside an array sometimes. 
     // We need to grab the password safely).
     let inputPassword = body.password;
-    if (Array.isArray(body)) inputPassword = body[0].password;
+    if (Array.isArray(body) && body.length > 0 && body[0] && typeof body[0] === 'object') {
+        inputPassword = body[0].password;
+    }
 
-    if (user[0].password !== inputPassword) {
+    if (!inputPassword || user[0].password !== inputPassword) {
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
