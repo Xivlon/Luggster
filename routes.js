@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { eq, desc, sql, and } from 'drizzle-orm';
 import { db } from './db.js';
-import { shipments, users, driverProfiles, locations } from './schema.js';
+import { shipments, users, driverProfiles, locations } from './schema.js'; 
 
 // ============================================================================
 // 1. AUTH ROUTES (Signup & Login)
