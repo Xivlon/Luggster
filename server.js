@@ -6,248 +6,260 @@ import { etag } from 'hono/etag';
 import { shipmentRoutes, driverRoutes, adminRoutes } from './routes.js';
 import { getPhoto } from './storage.js';
 import { db } from './db.js';
-import { locations } from './schema.js';
-
+import { locations } from './schema.
 // ============================================================================
 // FRONTEND HTML TEMPLATES
 // ============================================================================
 
-// ... end of dispatcherHtml ...
-
-const adminHtml = `<!DOCTYPE html>
+const dispatcherHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LuggageLink Admin Dashboard</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎒</text></svg>">
+    <title>LuggageLink Dispatcher Console</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <style>
-        .address-truncate { 
-            max-width: 150px; 
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis; 
-            display: inline-block;
-            vertical-align: bottom;
+        #map { height: 350px; width: 100%; border-radius: 0.5rem; z-index: 1; }
+        .leaflet-control-geocoder { z-index: 1000 !important; }
+
+        /* OVERRIDE: LUCIDE SEARCH ICON */
+        .leaflet-control-geocoder-icon {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 18px 18px; /* Adjust icon size here */
+            border-radius: 0.5rem;
         }
     </style>
 </head>
-<body class="bg-slate-900 min-h-screen text-slate-100 font-sans">
-    <div class="bg-slate-800 border-b border-slate-700 px-6 py-4 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
+<body class="bg-slate-50 min-h-screen p-6 font-sans text-green-800">
+
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
             <div class="flex items-center gap-3">
                 <div class="bg-green-600 text-white p-2 rounded-lg">
-                    <i data-lucide="truck" class="w-6 h-6"></i>
+                    <i data-lucide="truck" class="w-8 h-8"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold">LuggageLink Admin</h1>
-                    <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                        <p class="text-xs text-slate-400">Live Operations</p>
-                    </div>
+                    <h1 class="text-2xl font-bold text-slate-900">Dispatcher Console</h1>
+                    <p class="text-sm text-slate-500">Create and assign new luggage shipments</p>
                 </div>
             </div>
-            <button onclick="loadAll()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border border-slate-600">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh
-            </button>
-        </div>
-    </div>
-
-    <div class="max-w-7xl mx-auto p-6">
-        <div id="error"></div>
-
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Pending</div>
-                <div id="statPending" class="text-2xl font-black text-yellow-400">-</div>
-            </div>
-            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Assigned</div>
-                <div id="statAssigned" class="text-2xl font-black text-blue-400">-</div>
-            </div>
-            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Picked Up</div>
-                <div id="statPickedUp" class="text-2xl font-black text-purple-400">-</div>
-            </div>
-            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Delivered</div>
-                <div id="statDelivered" class="text-2xl font-black text-green-400">-</div>
-            </div>
-            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Revenue</div>
-                <div id="statRevenue" class="text-2xl font-black text-emerald-400">-</div>
-            </div>
-            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Drivers</div>
-                <div id="statDrivers" class="text-2xl font-black text-orange-400">-</div>
+            
+            <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-green-200 shadow-sm text-sm">
+                <div id="connStatus" class="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></div>
+                <span id="connText" class="font-medium text-slate-600">Connecting...</span>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col max-h-[800px]">
-                <div class="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50 backdrop-blur">
-                    <h2 class="font-bold flex items-center gap-2">
-                        <i data-lucide="package" class="text-green-400 w-5 h-5"></i> Live Shipments
+            
+            <div class="lg:col-span-2 space-y-6">
+                
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-green-200">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 border-b pb-2 border-green-100">
+                        <i data-lucide="user" class="text-green-600 w-5 h-5"></i> Customer Information
                     </h2>
-                    <select id="statusFilter" onchange="loadShipments()" class="bg-slate-700 border-none rounded-lg text-sm px-3 py-1.5 focus:ring-1 focus:ring-green-500 outline-none cursor-pointer">
-                        <option value="">All Statuses</option>
-                        <option value="PENDING">Pending</option>
-                        <option value="ASSIGNED">Assigned</option>
-                        <option value="PICKED_UP">Picked Up</option>
-                        <option value="DELIVERED">Delivered</option>
-                    </select>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Full Name</label>
+                            <input type="text" id="custName" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g. Sarah Connor">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
+                            <input type="email" id="custEmail" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none" placeholder="sarah@example.com">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
+                            <input type="tel" id="custPhone" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none" placeholder="(555) 123-4567">
+                        </div>
+                    </div>
                 </div>
-                <div id="shipmentsTable" class="p-4 overflow-y-auto custom-scrollbar">
-                    <div class="text-center text-slate-500 py-12 flex flex-col items-center">
-                        <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2"></i>
-                        <span>Loading shipments...</span>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-green-200">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 border-b pb-2 border-slate-100">
+                        <i data-lucide="briefcase" class="text-green-600 w-5 h-5"></i> Luggage Details
+                    </h2>
+                    
+                    <div class="overflow-hidden rounded-lg border border-green-200">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-50 text-slate-500 uppercase font-bold text-xs">
+                                <tr>
+                                    <th class="p-3">Bag Type</th>
+                                    <th class="p-3 w-24">Price</th>
+                                    <th class="p-3 w-24 text-center">Quantity</th>
+                                    <th class="p-3 w-32 text-right">Line Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 bg-white">
+                                <tr>
+                                    <td class="p-3 font-medium text-slate-900">Large / Med</td>
+                                    <td class="p-3 text-slate-500">$10.00</td>
+                                    <td class="p-3">
+                                        <input type="number" min="0" value="0" data-name="Large/Med" data-price="10" class="bag-input w-full p-2 border border-slate-200 rounded text-center font-bold focus:ring-1 focus:ring-green-500 outline-none">
+                                    </td>
+                                    <td class="p-3 text-right font-bold text-slate-900 bag-total">$0.00</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-medium text-slate-900">Small Carry on</td>
+                                    <td class="p-3 text-slate-500">$7.00</td>
+                                    <td class="p-3">
+                                        <input type="number" min="0" value="0" data-name="Carry On" data-price="7" class="bag-input w-full p-2 border border-slate-200 rounded text-center font-bold focus:ring-1 focus:ring-green-500 outline-none">
+                                    </td>
+                                    <td class="p-3 text-right font-bold text-slate-900 bag-total">$0.00</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-medium text-slate-900">Small / Personal / Backpacks</td>
+                                    <td class="p-3 text-slate-500">$6.00</td>
+                                    <td class="p-3">
+                                        <input type="number" min="0" value="0" data-name="Backpack" data-price="6" class="bag-input w-full p-2 border border-slate-200 rounded text-center font-bold focus:ring-1 focus:ring-green-500 outline-none">
+                                    </td>
+                                    <td class="p-3 text-right font-bold text-slate-900 bag-total">$0.00</td>
+                                </tr>
+                            </tbody>
+                            <tfoot class="bg-slate-50 border-t border-slate-200">
+                                <tr>
+                                    <td colspan="3" class="p-3 text-right font-bold uppercase text-xs text-slate-500">Total Bags: <span id="totalBagCount">0</span></td>
+                                    <td class="p-3 text-right font-black text-slate-700 text-lg" id="bagsSubTotal">$0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-green-200">
+                    <h2 class="text-lg font-bold mb-4 flex items-center justify-between border-b pb-2 border-slate-100">
+                        <span class="flex items-center gap-2"><i data-lucide="map-pin" class="text-green-600 w-5 h-5"></i> Route Selection</span>
+                        <span class="text-xs font-normal text-slate-400">Powered by OpenStreetMap</span>
+                    </h2>
+
+                    <div class="bg-blue-50 text-blue-800 text-sm p-3 rounded-lg mb-4 flex items-start gap-2">
+                        <i data-lucide="info" class="w-5 h-5 mt-0.5"></i>
+                        <div>
+                            <strong>Use the Search Icon (🔍) on the map</strong> to find locations.
+                            <ul class="list-disc list-inside text-xs mt-1">
+                                <li>1st Selection = <span class="font-bold text-blue-600">Pickup</span> (Blue Marker)</li>
+                                <li>2nd Selection = <span class="font-bold text-green-600">Dropoff</span> (Green Marker)</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div id="map" class="mb-6 border border-slate-200 shadow-inner"></div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+                        <div class="hidden md:block absolute left-1/2 top-4 bottom-4 w-px bg-slate-100 -translate-x-1/2"></div>
+
+                        <div>
+                            <div class="flex items-center gap-2 mb-3">
+                                <div class="w-2 h-2 rounded-full bg-blue-600"></div>
+                                <h3 class="font-bold text-slate-900">Pick Up</h3>
+                            </div>
+                            <div class="space-y-3">
+                                <div>
+                                    <input type="text" id="originInput" readonly placeholder="Select on Map..." class="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-600 cursor-not-allowed">
+                                    <input type="hidden" id="pickupLat"><input type="hidden" id="pickupLng">
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 mb-1">Date</label>
+                                        <input type="date" id="pickupDate" class="w-full p-2 border border-slate-200 rounded-lg text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 mb-1">Time</label>
+                                        <input type="time" id="pickupTime" class="w-full p-2 border border-slate-200 rounded-lg text-sm">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center gap-2 mb-3">
+                                <div class="w-2 h-2 rounded-full bg-green-600"></div>
+                                <h3 class="font-bold text-slate-900">Drop Off</h3>
+                            </div>
+                            <div class="space-y-3">
+                                <div>
+                                    <input type="text" id="destInput" readonly placeholder="Select on Map..." class="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-600 cursor-not-allowed">
+                                    <input type="hidden" id="dropoffLat"><input type="hidden" id="dropoffLng">
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 mb-1">Date</label>
+                                        <input type="date" id="dropoffDate" class="w-full p-2 border border-slate-200 rounded-lg text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 mb-1">Time</label>
+                                        <input type="time" id="dropoffTime" class="w-full p-2 border border-slate-200 rounded-lg text-sm">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col max-h-[800px]">
-                <div class="px-6 py-4 border-b border-slate-700 bg-slate-800/50 backdrop-blur">
-                    <h2 class="font-bold flex items-center gap-2">
-                        <i data-lucide="users" class="text-green-400 w-5 h-5"></i> Active Drivers
-                    </h2>
+            <div class="space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-green-200 sticky top-6 z-10">
+                    <h2 class="text-lg font-bold mb-4">Summary</h2>
+                    
+                    <div class="space-y-4 mb-6">
+                        <div class="flex gap-2">
+                            <input type="text" id="promoCode" placeholder="Promo Code" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm uppercase outline-none focus:ring-1 focus:ring-green-500">
+                            <button onclick="applyPromo()" class="bg-slate-800 text-white px-4 rounded-lg text-sm font-bold hover:bg-slate-700">Apply</button>
+                        </div>
+                        <div id="promoMsg" class="hidden text-xs font-bold"></div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Total Price ($)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-slate-400 font-bold">$</span>
+                                <input  id="finalPrice" value="5.73" readonly class="w-full pl-7 p-3 bg-white-100 border border-green-200 rounded-lg font-black text-slate-500 text-xl cursor-not-allowed select-none">
+                            </div>
+                            
+                            <div class="mt-3 text-xs text-slate-500 space-y-1 bg-slate-50 p-3 rounded border border-slate-100">
+                                <div class="flex justify-between">
+                                    <span>Bag Subtotal:</span>
+                                    <span id="summaryBagTotal" class="font-bold">$0.00</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Platform Fee:</span>
+                                    <span class="font-bold text-slate-700">$5.73</span>
+                                </div>
+                                <div id="summaryDiscountRow" class="flex justify-between text-green-600 hidden">
+                                    <span>Discount (<span id="discountName"></span>):</span>
+                                    <span id="discountVal" class="font-bold">-$0.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Internal Notes</label>
+                            <textarea id="internalNotes" rows="4" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" placeholder="Gate codes, special instructions..."></textarea>
+                        </div>
+                    </div>
+
+                    <button onclick="createShipment()" id="submitBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-200 transition-all flex items-center justify-center gap-2">
+                        <span>Create Shipment</span>
+                        <i data-lucide="send" class="w-5 h-5"></i>
+                    </button>
+
+                    <div id="resultMsg" class="mt-4 hidden p-3 rounded-lg text-sm text-center"></div>
                 </div>
-                <div id="driversList" class="p-4 overflow-y-auto custom-scrollbar">
-                    <div class="text-center text-slate-500 py-12">Loading drivers...</div>
+
+                <div class="bg-slate-100 p-4 rounded-xl border border-slate-200 opacity-60 hover:opacity-100 transition-opacity">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Backend URL</label>
+                    <input type="text" id="apiUrl" readonly class="w-full p-1.5 bg-slate-200 border border-slate-300 rounded text-[10px] text-slate-600 font-mono cursor-not-allowed">
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        lucide.createIcons();
-        const API_URL = window.location.origin;
-
-        async function loadStats() {
-            try {
-                const res = await fetch(API_URL + '/api/admin/stats');
-                const data = await res.json();
-                document.getElementById('statPending').textContent = data.shipments?.pending || 0;
-                document.getElementById('statAssigned').textContent = data.shipments?.assigned || 0;
-                document.getElementById('statPickedUp').textContent = data.shipments?.pickedUp || 0;
-                document.getElementById('statDelivered').textContent = data.shipments?.delivered || 0;
-                document.getElementById('statRevenue').textContent = '$' + (data.revenue?.totalDollars || '0.00');
-                document.getElementById('statDrivers').textContent = (data.drivers?.online || 0) + '/' + (data.drivers?.total || 0);
-            } catch (error) { console.warn('Stats error:', error); }
-        }
-
-        async function loadShipments() {
-            const status = document.getElementById('statusFilter').value;
-            const url = API_URL + '/api/admin/shipments' + (status ? '?status=' + status : '');
-            const container = document.getElementById('shipmentsTable');
-            try {
-                const res = await fetch(url);
-                const data = await res.json();
-                const list = data.shipments || [];
-                if (list.length === 0) {
-                    container.innerHTML = '<div class="text-center text-slate-500 py-12">No shipments found</div>';
-                    return;
-                }
-                let html = '<div class="space-y-3">';
-                list.forEach(s => {
-                    const statusConfig = {
-                        'PENDING': { class: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', icon: 'clock' },
-                        'ASSIGNED': { class: 'bg-blue-500/10 text-blue-400 border-blue-500/20', icon: 'user-check' },
-                        'PICKED_UP': { class: 'bg-purple-500/10 text-purple-400 border-purple-500/20', icon: 'truck' },
-                        'DELIVERED': { class: 'bg-green-500/10 text-green-400 border-green-500/20', icon: 'check-circle' }
-                    };
-                    const st = statusConfig[s.status] || { class: 'bg-slate-600', icon: 'help-circle' };
-                    const formatLoc = (code, addr) => {
-                        if (code && code.length === 3 && code !== 'MAP' && code !== 'OTH') {
-                            return \`<span class="font-black text-lg text-white">\${code}</span>\`;
-                        }
-                        const fullAddr = addr || 'N/A';
-                        return \`<span class="address-truncate text-sm text-slate-300" title="\${fullAddr}">\${fullAddr}</span>\`;
-                    };
-                    const originDisplay = formatLoc(s.originAirport, s.pickupAddress);
-                    const destDisplay = formatLoc(s.destinationAirport, s.dropoffAddress);
-                    let driverDisplay = '<span class="text-slate-600 text-xs italic">Unassigned</span>';
-                    if (s.driverId) {
-                         driverDisplay = \`<span class="text-indigo-400 text-xs font-mono"><i data-lucide="user" class="w-3 h-3 inline"></i> \${s.driverId.slice(0,5)}..</span>\`;
-                    }
-                    let proofs = '';
-                    if (s.pickupPhotoUrl) proofs += \`<a href="\${s.pickupPhotoUrl}" target="_blank" class="text-blue-400 hover:text-blue-300"><i data-lucide="camera" class="w-4 h-4"></i></a>\`;
-                    if (s.deliveryPhotoUrl || s.dropoffPhotoUrl) proofs += \`<a href="\${s.deliveryPhotoUrl || s.dropoffPhotoUrl}" target="_blank" class="text-green-400 hover:text-green-300 ml-2"><i data-lucide="check-square" class="w-4 h-4"></i></a>\`;
-
-                    html += \`
-                    <div class="bg-slate-700/30 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-colors group">
-                        <div class="flex justify-between items-start mb-3">
-                            <div class="flex flex-col">
-                                <span class="font-mono text-[10px] text-slate-500 uppercase tracking-widest">ID: \${s.id.slice(0,8)}</span>
-                                <div class="font-bold text-lg text-white mt-0.5">$\${(s.priceCents / 100).toFixed(2)}</div>
-                            </div>
-                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border flex items-center gap-1 \${st.class}">
-                                <i data-lucide="\${st.icon}" class="w-3 h-3"></i> \${s.status}
-                            </span>
-                        </div>
-                        <div class="bg-slate-800/50 p-3 rounded border border-slate-700/50 mb-3 grid grid-cols-[1fr,auto,1fr] gap-2 items-center">
-                            <div class="overflow-hidden">\${originDisplay}</div>
-                            <i data-lucide="arrow-right" class="text-slate-600 w-4 h-4"></i>
-                            <div class="text-right overflow-hidden">\${destDisplay}</div>
-                        </div>
-                        <div class="flex justify-between items-center border-t border-slate-700/50 pt-3">
-                            <div class="text-xs text-slate-500 flex items-center gap-3">
-                                <span class="flex items-center gap-1"><i data-lucide="calendar" class="w-3 h-3"></i> \${new Date(s.createdAt).toLocaleDateString()}</span>
-                                \${driverDisplay}
-                            </div>
-                            <div class="flex items-center">
-                                \${proofs}
-                            </div>
-                        </div>
-                    </div>\`;
-                });
-                html += '</div>';
-                container.innerHTML = html;
-                lucide.createIcons();
-            } catch (error) {
-                container.innerHTML = '<div class="p-4 bg-red-900/20 border border-red-500/50 rounded-lg text-red-400 text-sm text-center">Failed to load data</div>';
-            }
-        }
-
-        async function loadDrivers() {
-            try {
-                const res = await fetch(API_URL + '/api/admin/drivers');
-                const data = await res.json();
-                const list = data.drivers || [];
-                const container = document.getElementById('driversList');
-                if (list.length === 0) {
-                    container.innerHTML = '<div class="text-center text-slate-500 py-12">No drivers found</div>';
-                    return;
-                }
-                let html = '<div class="space-y-3">';
-                list.forEach(d => {
-                    html += \`
-                    <div class="bg-slate-700/30 rounded-lg p-3 border border-slate-700 flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="w-2.5 h-2.5 rounded-full \${d.isOnline ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-slate-600'}"></div>
-                            <div>
-                                <div class="font-bold text-sm text-slate-200">\${d.name || d.email}</div>
-                                <div class="text-[10px] text-slate-500 uppercase tracking-wide">\${d.vehicleType || 'Unknown Vehicle'}</div>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                             <div class="font-mono text-lg font-bold text-slate-300">\${d.totalDeliveries}</div>
-                             <div class="text-[10px] text-slate-500">Deliveries</div>
-                        </div>
-                    </div>\`;
-                });
-                html += '</div>';
-                container.innerHTML = html;
-            } catch (error) { console.warn('Driver load error', error); }
-        }
-
-        function loadAll() { loadStats(); loadShipments(); loadDrivers(); }
-        loadAll();
-        setInterval(loadAll, 30000);
-    </script>
-</body>
-</html>`;
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
@@ -570,7 +582,242 @@ const adminHtml = `<!DOCTYPE html>
     </script>
 </body>
 </html>`;
+// ... end of dispatcherHtml ...
 
+const adminHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LuggageLink Admin Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎒</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .address-truncate { 
+            max-width: 150px; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            display: inline-block;
+            vertical-align: bottom;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 min-h-screen text-slate-100 font-sans">
+    <div class="bg-slate-800 border-b border-slate-700 px-6 py-4 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-green-600 text-white p-2 rounded-lg">
+                    <i data-lucide="truck" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold">LuggageLink Admin</h1>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        <p class="text-xs text-slate-400">Live Operations</p>
+                    </div>
+                </div>
+            </div>
+            <button onclick="loadAll()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border border-slate-600">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto p-6">
+        <div id="error"></div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Pending</div>
+                <div id="statPending" class="text-2xl font-black text-yellow-400">-</div>
+            </div>
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Assigned</div>
+                <div id="statAssigned" class="text-2xl font-black text-blue-400">-</div>
+            </div>
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Picked Up</div>
+                <div id="statPickedUp" class="text-2xl font-black text-purple-400">-</div>
+            </div>
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Delivered</div>
+                <div id="statDelivered" class="text-2xl font-black text-green-400">-</div>
+            </div>
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Revenue</div>
+                <div id="statRevenue" class="text-2xl font-black text-emerald-400">-</div>
+            </div>
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="text-slate-400 text-xs font-medium uppercase mb-1">Drivers</div>
+                <div id="statDrivers" class="text-2xl font-black text-orange-400">-</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col max-h-[800px]">
+                <div class="px-6 py-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50 backdrop-blur">
+                    <h2 class="font-bold flex items-center gap-2">
+                        <i data-lucide="package" class="text-green-400 w-5 h-5"></i> Live Shipments
+                    </h2>
+                    <select id="statusFilter" onchange="loadShipments()" class="bg-slate-700 border-none rounded-lg text-sm px-3 py-1.5 focus:ring-1 focus:ring-green-500 outline-none cursor-pointer">
+                        <option value="">All Statuses</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="ASSIGNED">Assigned</option>
+                        <option value="PICKED_UP">Picked Up</option>
+                        <option value="DELIVERED">Delivered</option>
+                    </select>
+                </div>
+                <div id="shipmentsTable" class="p-4 overflow-y-auto custom-scrollbar">
+                    <div class="text-center text-slate-500 py-12 flex flex-col items-center">
+                        <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2"></i>
+                        <span>Loading shipments...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col max-h-[800px]">
+                <div class="px-6 py-4 border-b border-slate-700 bg-slate-800/50 backdrop-blur">
+                    <h2 class="font-bold flex items-center gap-2">
+                        <i data-lucide="users" class="text-green-400 w-5 h-5"></i> Active Drivers
+                    </h2>
+                </div>
+                <div id="driversList" class="p-4 overflow-y-auto custom-scrollbar">
+                    <div class="text-center text-slate-500 py-12">Loading drivers...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        const API_URL = window.location.origin;
+
+        async function loadStats() {
+            try {
+                const res = await fetch(API_URL + '/api/admin/stats');
+                const data = await res.json();
+                document.getElementById('statPending').textContent = data.shipments?.pending || 0;
+                document.getElementById('statAssigned').textContent = data.shipments?.assigned || 0;
+                document.getElementById('statPickedUp').textContent = data.shipments?.pickedUp || 0;
+                document.getElementById('statDelivered').textContent = data.shipments?.delivered || 0;
+                document.getElementById('statRevenue').textContent = '$' + (data.revenue?.totalDollars || '0.00');
+                document.getElementById('statDrivers').textContent = (data.drivers?.online || 0) + '/' + (data.drivers?.total || 0);
+            } catch (error) { console.warn('Stats error:', error); }
+        }
+
+        async function loadShipments() {
+            const status = document.getElementById('statusFilter').value;
+            const url = API_URL + '/api/admin/shipments' + (status ? '?status=' + status : '');
+            const container = document.getElementById('shipmentsTable');
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                const list = data.shipments || [];
+                if (list.length === 0) {
+                    container.innerHTML = '<div class="text-center text-slate-500 py-12">No shipments found</div>';
+                    return;
+                }
+                let html = '<div class="space-y-3">';
+                list.forEach(s => {
+                    const statusConfig = {
+                        'PENDING': { class: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', icon: 'clock' },
+                        'ASSIGNED': { class: 'bg-blue-500/10 text-blue-400 border-blue-500/20', icon: 'user-check' },
+                        'PICKED_UP': { class: 'bg-purple-500/10 text-purple-400 border-purple-500/20', icon: 'truck' },
+                        'DELIVERED': { class: 'bg-green-500/10 text-green-400 border-green-500/20', icon: 'check-circle' }
+                    };
+                    const st = statusConfig[s.status] || { class: 'bg-slate-600', icon: 'help-circle' };
+                    const formatLoc = (code, addr) => {
+                        if (code && code.length === 3 && code !== 'MAP' && code !== 'OTH') {
+                            return \`<span class="font-black text-lg text-white">\${code}</span>\`;
+                        }
+                        const fullAddr = addr || 'N/A';
+                        return \`<span class="address-truncate text-sm text-slate-300" title="\${fullAddr}">\${fullAddr}</span>\`;
+                    };
+                    const originDisplay = formatLoc(s.originAirport, s.pickupAddress);
+                    const destDisplay = formatLoc(s.destinationAirport, s.dropoffAddress);
+                    let driverDisplay = '<span class="text-slate-600 text-xs italic">Unassigned</span>';
+                    if (s.driverId) {
+                         driverDisplay = \`<span class="text-indigo-400 text-xs font-mono"><i data-lucide="user" class="w-3 h-3 inline"></i> \${s.driverId.slice(0,5)}..</span>\`;
+                    }
+                    let proofs = '';
+                    if (s.pickupPhotoUrl) proofs += \`<a href="\${s.pickupPhotoUrl}" target="_blank" class="text-blue-400 hover:text-blue-300"><i data-lucide="camera" class="w-4 h-4"></i></a>\`;
+                    if (s.deliveryPhotoUrl || s.dropoffPhotoUrl) proofs += \`<a href="\${s.deliveryPhotoUrl || s.dropoffPhotoUrl}" target="_blank" class="text-green-400 hover:text-green-300 ml-2"><i data-lucide="check-square" class="w-4 h-4"></i></a>\`;
+
+                    html += \`
+                    <div class="bg-slate-700/30 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-colors group">
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex flex-col">
+                                <span class="font-mono text-[10px] text-slate-500 uppercase tracking-widest">ID: \${s.id.slice(0,8)}</span>
+                                <div class="font-bold text-lg text-white mt-0.5">$\${(s.priceCents / 100).toFixed(2)}</div>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border flex items-center gap-1 \${st.class}">
+                                <i data-lucide="\${st.icon}" class="w-3 h-3"></i> \${s.status}
+                            </span>
+                        </div>
+                        <div class="bg-slate-800/50 p-3 rounded border border-slate-700/50 mb-3 grid grid-cols-[1fr,auto,1fr] gap-2 items-center">
+                            <div class="overflow-hidden">\${originDisplay}</div>
+                            <i data-lucide="arrow-right" class="text-slate-600 w-4 h-4"></i>
+                            <div class="text-right overflow-hidden">\${destDisplay}</div>
+                        </div>
+                        <div class="flex justify-between items-center border-t border-slate-700/50 pt-3">
+                            <div class="text-xs text-slate-500 flex items-center gap-3">
+                                <span class="flex items-center gap-1"><i data-lucide="calendar" class="w-3 h-3"></i> \${new Date(s.createdAt).toLocaleDateString()}</span>
+                                \${driverDisplay}
+                            </div>
+                            <div class="flex items-center">
+                                \${proofs}
+                            </div>
+                        </div>
+                    </div>\`;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+                lucide.createIcons();
+            } catch (error) {
+                container.innerHTML = '<div class="p-4 bg-red-900/20 border border-red-500/50 rounded-lg text-red-400 text-sm text-center">Failed to load data</div>';
+            }
+        }
+
+        async function loadDrivers() {
+            try {
+                const res = await fetch(API_URL + '/api/admin/drivers');
+                const data = await res.json();
+                const list = data.drivers || [];
+                const container = document.getElementById('driversList');
+                if (list.length === 0) {
+                    container.innerHTML = '<div class="text-center text-slate-500 py-12">No drivers found</div>';
+                    return;
+                }
+                let html = '<div class="space-y-3">';
+                list.forEach(d => {
+                    html += \`
+                    <div class="bg-slate-700/30 rounded-lg p-3 border border-slate-700 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-2.5 h-2.5 rounded-full \${d.isOnline ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-slate-600'}"></div>
+                            <div>
+                                <div class="font-bold text-sm text-slate-200">\${d.name || d.email}</div>
+                                <div class="text-[10px] text-slate-500 uppercase tracking-wide">\${d.vehicleType || 'Unknown Vehicle'}</div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                             <div class="font-mono text-lg font-bold text-slate-300">\${d.totalDeliveries}</div>
+                             <div class="text-[10px] text-slate-500">Deliveries</div>
+                        </div>
+                    </div>\`;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (error) { console.warn('Driver load error', error); }
+        }
+
+        function loadAll() { loadStats(); loadShipments(); loadDrivers(); }
+        loadAll();
+        setInterval(loadAll, 30000);
+    </script>
+</body>
+</html>`;
 // ============================================================================
 // HONO APP SETUP
 // ============================================================================
