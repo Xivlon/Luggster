@@ -3,7 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { etag } from 'hono/etag';
-import { shipmentRoutes, driverRoutes, adminRoutes } from './routes.js';
+import { shipmentRoutes, driverRoutes, adminRoutes, authRoutes } from './routes.js';
 import { getPhoto } from './storage.js';
 import { db } from './db.js';
 import { locations } from './schema.js';
@@ -619,11 +619,6 @@ app.get('/', (c) => {
   return c.html(dispatcherHtml);
 });
 
-// Admin Console (dashboard for monitoring)
-app.get('/admin', (c) => {
-  return c.html(adminHtml);
-});
-
 // ============================================================================
 // API ROUTES
 // ============================================================================
@@ -636,6 +631,9 @@ app.route('/api/driver', driverRoutes);
 
 // Mount admin routes at /api/admin  
 app.route('/api/admin', adminRoutes);
+
+// Mount auth routes at /api/auth
+app.route('/api/auth', authRoutes);
 
 // GET /api/locations - Returns all special hubs/airports
 app.get('/api/locations', async (c) => {
