@@ -10,7 +10,7 @@ import { getPhoto } from './storage.js';
 // FRONTEND HTML TEMPLATES
 // ============================================================================
 
-const dispatcherHtml = const dispatcherHtml = const dispatcherHtml = `<!DOCTYPE html>
+const dispatcherHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
