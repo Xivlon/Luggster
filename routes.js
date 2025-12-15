@@ -37,7 +37,7 @@ function sanitizeDate(dateInput) {
 }
 
 /**
- * Finds or creates a user by email with optional name and phone
+ * Finds or creates a user by email with robust name splitting
  */
 async function findOrCreateCustomer(db, customerDetails) {
   const { email, name, phone } = customerDetails || {};
@@ -48,12 +48,7 @@ async function findOrCreateCustomer(db, customerDetails) {
   
   const normalizedEmail = email.toLowerCase().trim();
   
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(normalizedEmail)) {
-    throw new Error('Invalid email format');
-  }
-  
-  // Try to find existing user
+  // 1. Try to find existing user
   const existingUsers = await db
     .select()
     .from(users)
@@ -61,28 +56,24 @@ async function findOrCreateCustomer(db, customerDetails) {
     .limit(1);
   
   if (existingUsers.length > 0) {
-    const existing = existingUsers[0];
-    if ((name && name !== existing.name) || (phone && phone !== existing.phone)) {
-      const updated = await db
-        .update(users)
-        .set({
-          name: name || existing.name,
-          phone: phone || existing.phone,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, existing.id))
-        .returning();
-      return updated[0];
-    }
-    return existing;
+    return existingUsers[0];
   }
   
-  // Create new user
+  // 2. Name Splitting Logic (The Fix)
+  // The database needs firstName/lastName, but we only have 'name'
+  const safeName = (name && name.trim().length > 0) ? name.trim() : 'Guest User';
+  const nameParts = safeName.split(' ');
+  const firstName = nameParts[0] || 'Guest';
+  const lastName = nameParts.slice(1).join(' ') || 'User';
+
+  // 3. Create new user
   const newUsers = await db
     .insert(users)
     .values({
       email: normalizedEmail,
-      name: name || null,
+      firstName: firstName,  // Now correctly defined!
+      lastName: lastName,    // Now correctly defined!
+      password: Math.random().toString(36), // Random placeholder password
       phone: phone || null,
       userType: 'customer',
     })
