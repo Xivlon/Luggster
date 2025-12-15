@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, real, boolean, timestamp, uuid, integer, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, text, timestamp, integer, boolean, real, uuid, pgEnum } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // 1. Enums
@@ -47,7 +47,7 @@ export const shipments = pgTable('shipments', {
   driverId: uuid('driver_id').references(() => users.id, { onDelete: 'set null' }),
   status: shipmentStatusEnum('status').notNull().default('PENDING'),
   
-  // Locations
+  // Location Data
   originAirport: varchar('origin_airport', { length: 10 }),
   destinationAirport: varchar('destination_airport', { length: 10 }),
   
@@ -71,7 +71,7 @@ export const shipments = pgTable('shipments', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-// 6. Relations (Optional but good for Drizzle queries)
+// 6. Relations
 export const usersRelations = relations(users, ({ one }) => ({
   profile: one(driverProfiles, {
     fields: [users.id],
