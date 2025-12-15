@@ -7,6 +7,7 @@ import { shipmentRoutes, driverRoutes, adminRoutes } from './routes.js';
 import { getPhoto } from './storage.js';
 import { db } from './db.js';
 import { locations } from './schema.js';
+
 // ============================================================================
 // FRONTEND HTML TEMPLATES
 // ============================================================================
@@ -337,12 +338,11 @@ const dispatcherHtml = `<!DOCTYPE html>
                         const icon = loc.type === 'AIRPORT' ? airportIcon : hubIcon;
                         const marker = L.marker([loc.latitude, loc.longitude], { icon: icon }).addTo(map);
                         
-                        // Add Tooltip
-                        marker.bindTooltip(`<b>${loc.code}</b><br>${loc.name}`, { direction: 'top', offset: [0, -10] });
+                        // Add Tooltip (Fixed String Concatenation)
+                        marker.bindTooltip('<b>' + loc.code + '</b><br>' + loc.name, { direction: 'top', offset: [0, -10] });
 
-                        // Click Logic: Treat this as a "Selection"
+                        // Click Logic
                         marker.on('click', () => {
-                            // Pass the CODE as the address (e.g., "MCO")
                             handleMapClick({ latlng: { lat: loc.latitude, lng: loc.longitude } }, loc.code);
                         });
                     });
@@ -368,9 +368,8 @@ const dispatcherHtml = `<!DOCTYPE html>
             const lat = e.latlng.lat;
             const lng = e.latlng.lng;
             
-            // If addressOverride is short (like "MCO"), use it. Otherwise, use coord string.
-            // Note: In a real app, you'd Reverse Geocode here if addressOverride is null.
-            const displayAddress = addressOverride || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            // Fixed String Concatenation
+            const displayAddress = addressOverride || lat.toFixed(4) + ', ' + lng.toFixed(4);
 
             if (selectionMode === 'pickup') {
                 if (pickupMarker) map.removeLayer(pickupMarker);
@@ -520,10 +519,8 @@ const dispatcherHtml = `<!DOCTYPE html>
             ].join('\\n');
 
             // INTELLIGENT ROUTE NAMING
-            // If the input is short (e.g. "MCO"), save it as the airport code.
-            // If it's long, save as "MAP" so the Admin knows to look at the address.
-            const originCode = rawOrigin.length <= 5 ? rawOrigin : "MAP";
-            const destCode = rawDest.length <= 5 ? rawDest : "MAP";
+            const originCode = rawOrigin.length <= 8 ? rawOrigin : "MAP";
+            const destCode = rawDest.length <= 8 ? rawDest : "MAP";
 
             const payload = {
                 customerId: crypto.randomUUID(), 
@@ -582,7 +579,6 @@ const dispatcherHtml = `<!DOCTYPE html>
     </script>
 </body>
 </html>`;
-// ... end of dispatcherHtml ...
 
 const adminHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -729,7 +725,7 @@ const adminHtml = `<!DOCTYPE html>
                     };
                     const st = statusConfig[s.status] || { class: 'bg-slate-600', icon: 'help-circle' };
                     const formatLoc = (code, addr) => {
-                        if (code && code.length === 3 && code !== 'MAP' && code !== 'OTH') {
+                        if (code && code.length >= 3 && code !== 'MAP' && code !== 'OTH') {
                             return \`<span class="font-black text-lg text-white">\${code}</span>\`;
                         }
                         const fullAddr = addr || 'N/A';
@@ -818,6 +814,7 @@ const adminHtml = `<!DOCTYPE html>
     </script>
 </body>
 </html>`;
+
 // ============================================================================
 // HONO APP SETUP
 // ============================================================================
@@ -874,6 +871,7 @@ app.route('/api/driver', driverRoutes);
 
 // Mount admin routes at /api/admin  
 app.route('/api/admin', adminRoutes);
+
 // GET /api/locations - Returns all special hubs/airports
 app.get('/api/locations', async (c) => {
   try {
@@ -883,6 +881,7 @@ app.get('/api/locations', async (c) => {
     return c.json({ error: err.message }, 500);
   }
 });
+
 // ============================================================================
 // PHOTO SERVING ROUTE
 // ============================================================================
