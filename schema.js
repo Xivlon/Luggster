@@ -9,9 +9,11 @@ export const shipmentStatusEnum = pgEnum('shipment_status', ['PENDING', 'ASSIGNE
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),
-  password: varchar('password', { length: 255 }), // Hashed password, nullable for customers created via dispatcher
-  firstName: varchar('first_name', { length: 100 }).notNull(),
-  lastName: varchar('last_name', { length: 100 }).notNull(),
+  password: varchar('password', { length: 255 }), 
+  
+  // ✅ RESTORED: Using single 'name' to match your SQL and Routes
+  name: varchar('name', { length: 255 }),
+  
   phone: varchar('phone', { length: 50 }),
   userType: userTypeEnum('user_type').notNull().default('customer'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -37,14 +39,14 @@ export const shipments = pgTable('shipments', {
   id: uuid('id').defaultRandom().primaryKey(),
   customerId: uuid('customer_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   driverId: uuid('driver_id').references(() => users.id, { onDelete: 'set null' }),
-  luggageId: uuid('luggage_id'), // Optional reference for luggage tracking
+  luggageId: uuid('luggage_id'), 
   status: shipmentStatusEnum('status').notNull().default('PENDING'),
   
-  // Airport/Location codes (3-letter codes like MCO, MIA, or "OTH" for custom addresses)
+  // Airport/Location codes
   originAirport: varchar('origin_airport', { length: 10 }),
   destinationAirport: varchar('destination_airport', { length: 10 }),
   
-  // Full addresses (stored in notes or separate fields)
+  // Full addresses
   pickupAddress: text('pickup_address'),
   pickupLatitude: real('pickup_latitude'),
   pickupLongitude: real('pickup_longitude'),
@@ -59,17 +61,12 @@ export const shipments = pgTable('shipments', {
   dropoffContactName: varchar('dropoff_contact_name', { length: 255 }),
   dropoffContactPhone: varchar('dropoff_contact_phone', { length: 50 }),
   
-  // Distance tracking
   distanceMiles: real('distance_miles'),
-  
-  // Pricing
   priceCents: integer('price_cents').notNull(),
   currency: varchar('currency', { length: 3 }).default('USD'),
-  
-  // Notes (contains customer info, luggage details, promo info, etc.)
   notes: text('notes'),
   
-  // Photo evidence URLs (stored in R2)
+  // Photo evidence URLs
   pickupPhotoUrl: text('pickup_photo_url'),
   deliveryPhotoUrl: text('delivery_photo_url'),
   signatureUrl: text('signature_url'),
@@ -112,7 +109,6 @@ export const shipmentsRelations = relations(shipments, ({ one }) => ({
   }),
 }));
 
-// Export all tables for migrations
 export const schema = {
   users,
   driverProfiles,
