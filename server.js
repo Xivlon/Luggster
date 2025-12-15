@@ -577,7 +577,15 @@ app.route('/api/driver', driverRoutes);
 
 // Mount admin routes at /api/admin  
 app.route('/api/admin', adminRoutes);
-
+// GET /api/locations - Returns all special hubs/airports
+app.get('/api/locations', async (c) => {
+  try {
+    const result = await db.select().from(locations);
+    return c.json({ locations: result });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
 // ============================================================================
 // PHOTO SERVING ROUTE
 // ============================================================================
