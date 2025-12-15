@@ -735,7 +735,36 @@ adminRoutes.delete('/shipments/:id', async (c) => {
     return c.json({ error: 'Failed to delete shipment' }, 500);
   }
 });
+// PUT /api/admin/shipments/:id/assign - Manually assign a driver
+adminRoutes.put('/shipments/:id/assign', async (c) => {
+  try {
+    const shipmentId = c.req.param('id');
+    const { driverId } = await c.req.json();
 
+    if (!driverId) return c.json({ error: 'Driver ID is required' }, 400);
+
+    // 1. Update the shipment
+    const updated = await db.update(shipments)
+      .set({ 
+        driverId: driverId,
+        status: 'ASSIGNED',
+        updatedAt: new Date()
+      })
+      .where(eq(shipments.id, shipmentId))
+      .returning();
+
+    if (updated.length === 0) {
+      return c.json({ error: 'Shipment not found' }, 404);
+    }
+
+    // 2. (Optional) In a real app, you would send a Push Notification to the driver here
+
+    return c.json({ success: true, shipment: updated[0] });
+  } catch (err) {
+    console.error('Assignment Error:', err);
+    return c.json({ error: err.message }, 500);
+  }
+});
 adminRoutes.get('/drivers', async (c) => {
   try {
     const db = getDb(c);
