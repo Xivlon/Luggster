@@ -9,3 +9,6 @@ const client = neon(connectionString);
 
 // This simple export is exactly what server.js is looking for
 export const db = drizzle(client, { schema });
+export function getDb(c) {
+  return db;
+}
