@@ -260,6 +260,14 @@ adminRoutes.put('/shipments/:id/assign', async (c) => {
 authRoutes.get('/signup', (c) => {
   return c.json({ message: "Alive! The API is connected. Now send a POST request." });
 });
+// TEMPORARY: Test route to prove /api/auth/login exists
+authRoutes.get('/login', (c) => {
+  return c.json({ 
+    status: "online", 
+    message: "Login endpoint is reachable! Send a POST request with email/password to sign in." 
+  });
+});
+
 // ============================================================================
 // 4. DRIVER ROUTES (Placeholder)
 // ============================================================================
