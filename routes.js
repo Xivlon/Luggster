@@ -304,10 +304,77 @@ authRoutes.get('/login', (c) => {
 });
 
 // ============================================================================
-// 4. DRIVER ROUTES (Placeholder)
+// 4. DRIVER ROUTES (Job Board & Acceptance)
 // ============================================================================
 const driverRoutes = new Hono();
-driverRoutes.get('/me', (c) => c.json({ msg: 'Driver profile placeholder' }));
 
-// Export everything
+// 1. Get Profile (Keep this for the frontend check)
+driverRoutes.get('/me', (c) => c.json({ msg: 'Driver profile active' }));
+
+// 2. See Available Jobs (Only shows PENDING jobs)
+driverRoutes.get('/shipments/available', async (c) => {
+  try {
+    const openJobs = await db.select()
+      .from(shipments)
+      .where(eq(shipments.status, 'PENDING'))
+      .orderBy(desc(shipments.createdAt));
+    
+    return c.json({ success: true, jobs: openJobs });
+  } catch (err) {
+    return c.json({ error: "Failed to fetch jobs", details: err.message }, 500);
+  }
+});
+
+// 3. Accept a Job
+driverRoutes.post('/shipments/:id/accept', async (c) => {
+  try {
+    const shipmentId = c.req.param('id');
+    const { driverId } = await c.req.json(); // Frontend must send { "driverId": "..." }
+
+    if (!driverId) return c.json({ error: "Driver ID missing" }, 400);
+
+    // Atomic Update: Only update if it is still PENDING
+    // This prevents two drivers from grabbing the same job
+    const result = await db.update(shipments)
+      .set({
+        driverId: driverId,
+        status: 'ASSIGNED'
+      })
+      .where(and(
+        eq(shipments.id, shipmentId),
+        eq(shipments.status, 'PENDING')
+      ))
+      .returning();
+
+    if (result.length === 0) {
+      return c.json({ error: "Job no longer available or already taken" }, 409);
+    }
+
+    // Increment Driver's "Total Deliveries" count (Optional nice-to-have)
+    await db.execute(sql`UPDATE driver_profiles SET total_deliveries = total_deliveries + 1 WHERE user_id = ${driverId}`);
+
+    return c.json({ success: true, job: result[0] });
+
+  } catch (err) {
+    return c.json({ error: "Accept failed", details: err.message }, 500);
+  }
+});
+
+// 4. See My Jobs (Active & Past)
+driverRoutes.get('/shipments/my-jobs', async (c) => {
+  try {
+    const driverId = c.req.query('driverId');
+    if (!driverId) return c.json({ error: "Driver ID required" }, 400);
+
+    const myJobs = await db.select()
+      .from(shipments)
+      .where(eq(shipments.driverId, driverId))
+      .orderBy(desc(shipments.createdAt));
+
+    return c.json({ success: true, jobs: myJobs });
+  } catch (err) {
+    return c.json({ error: "Failed to fetch history", details: err.message }, 500);
+  }
+});
+
 export { shipmentRoutes, adminRoutes, driverRoutes, authRoutes };
