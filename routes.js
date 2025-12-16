@@ -351,7 +351,9 @@ driverRoutes.post('/shipments/:id/accept', async (c) => {
     }
 
     // Increment Driver's "Total Deliveries" count (Optional nice-to-have)
-    await db.execute(sql`UPDATE driver_profiles SET total_deliveries = total_deliveries + 1 WHERE user_id = ${driverId}`);
+    await db.update(driverProfiles)
+      .set({ totalDeliveries: sql`${driverProfiles.totalDeliveries} + 1` })
+      .where(eq(driverProfiles.userId, driverId));
 
     return c.json({ success: true, job: result[0] });
 
