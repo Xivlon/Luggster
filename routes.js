@@ -429,11 +429,13 @@ driverRoutes.post('/shipments/:id/deliver', async (c) => {
       .returning();
 
     if (result.length === 0) {
-      return c.json({ error: "Cannot complete. Check status." }, 400);
+      return c.json({ error: "Cannot deliver. Job not assigned to you or not picked up yet." }, 400);
     }
 
     // Increment driver stats
-    await db.execute(sql`UPDATE driver_profiles SET total_deliveries = total_deliveries + 1 WHERE user_id = ${driverId}`);
+    await db.update(driverProfiles)
+      .set({ totalDeliveries: sql`${driverProfiles.totalDeliveries} + 1` })
+      .where(eq(driverProfiles.userId, driverId));
 
     return c.json({ success: true, status: 'DELIVERED', shipment: result[0] });
   } catch (err) {
