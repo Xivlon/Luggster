@@ -379,4 +379,66 @@ driverRoutes.get('/shipments/my-jobs', async (c) => {
   }
 });
 
+// 5. Driver: Mark as PICKED UP
+driverRoutes.post('/shipments/:id/pickup', async (c) => {
+  try {
+    const shipmentId = c.req.param('id');
+    const { driverId } = await c.req.json();
+
+    // Verify it is assigned to THIS driver and is currently ASSIGNED
+    const result = await db.update(shipments)
+      .set({ 
+        status: 'PICKED_UP',
+        // Optional: Capture actual pickup time if you want
+        // pickupAt: new Date() 
+      })
+      .where(and(
+        eq(shipments.id, shipmentId),
+        eq(shipments.driverId, driverId),
+        eq(shipments.status, 'ASSIGNED') // Can only pick up if assigned
+      ))
+      .returning();
+
+    if (result.length === 0) {
+      return c.json({ error: "Cannot pick up. Job not assigned to you or wrong status." }, 400);
+    }
+
+    return c.json({ success: true, status: 'PICKED_UP', shipment: result[0] });
+  } catch (err) {
+    return c.json({ error: "Pickup failed", details: err.message }, 500);
+  }
+});
+
+// 6. Driver: Mark as DELIVERED (Complete the job)
+driverRoutes.post('/shipments/:id/deliver', async (c) => {
+  try {
+    const shipmentId = c.req.param('id');
+    const { driverId, photoUrl } = await c.req.json(); // photoUrl is optional for now
+
+    const result = await db.update(shipments)
+      .set({ 
+        status: 'DELIVERED',
+        dropoffBy: new Date(), // Set the actual finish time
+        notes: photoUrl ? `Proof: ${photoUrl}` : undefined // Simple proof storage
+      })
+      .where(and(
+        eq(shipments.id, shipmentId),
+        eq(shipments.driverId, driverId),
+        eq(shipments.status, 'PICKED_UP') // Can only deliver if already picked up
+      ))
+      .returning();
+
+    if (result.length === 0) {
+      return c.json({ error: "Cannot complete. Check status." }, 400);
+    }
+
+    // Increment driver stats
+    await db.execute(sql`UPDATE driver_profiles SET total_deliveries = total_deliveries + 1 WHERE user_id = ${driverId}`);
+
+    return c.json({ success: true, status: 'DELIVERED', shipment: result[0] });
+  } catch (err) {
+    return c.json({ error: "Delivery failed", details: err.message }, 500);
+  }
+});
+
 export { shipmentRoutes, adminRoutes, driverRoutes, authRoutes };
