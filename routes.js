@@ -1,7 +1,34 @@
 import { Hono } from 'hono';
 import { eq, desc, sql, and, or } from 'drizzle-orm';
+import { sign, verify } from 'hono/jwt';
 import { db } from './db.js';
-import { shipments, users, driverProfiles, locations } from './schema.js'; 
+import { shipments, users, driverProfiles } from './schema.js';
+
+// ============================================================================
+// MIDDLEWARE: Check for valid Token
+// ============================================================================
+const authMiddleware = async (c, next) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    if (!authHeader) return c.json({ error: 'Unauthorized: Missing Token' }, 401);
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    //Read from Cloudflare Vault
+    const secret = c.env.JWT_SECRET; 
+    
+    if (!secret) {
+        console.error("CRITICAL: JWT_SECRET is missing from environment variables!");
+        return c.json({ error: 'Server Configuration Error' }, 500);
+    }
+
+    const payload = await verify(token, secret);
+    c.set('jwtPayload', payload); // Attach user info to request
+    await next();
+  } catch (err) {
+    return c.json({ error: 'Unauthorized: Invalid Token' }, 401);
+  }
+};
 
 // ============================================================================
 // 1. AUTH ROUTES (Signup & Login)
@@ -12,16 +39,12 @@ const authRoutes = new Hono();
 authRoutes.post('/signup', async (c) => {
   try {
     const body = await c.req.json();
-    // Add 'username' to the list of things we read
     const { email, password, firstName, lastName, phone, type, vehicleType, vehiclePlate, username } = body;
 
     // 1. Check if user exists
     const existing = await db.select().from(users).where(eq(users.email, email));
-    if (existing.length > 0) {
-      return c.json({ error: 'User already exists' }, 409);
-    }
+    if (existing.length > 0) return c.json({ error: 'User already exists' }, 409);
 
-    // NEW: Check if username is taken (only if they provided one)
     if (username) {
         const taken = await db.select().from(users).where(eq(users.username, username));
         if (taken.length > 0) return c.json({ error: 'Username already taken' }, 409);
@@ -30,8 +53,8 @@ authRoutes.post('/signup', async (c) => {
     // 2. Create User
     const newUser = await db.insert(users).values({
       email,
-      password, // Note: In a real app, hash this password!
-      username: username || null, // 👈 Save the username!
+      password, 
+      username: username || null,
       firstName: firstName || 'New',
       lastName: lastName || 'User',
       phone,
@@ -44,7 +67,7 @@ authRoutes.post('/signup', async (c) => {
     if (type === 'driver') {
       await db.insert(driverProfiles).values({
         userId: userId,
-        isOnline: true, // Default to online for immediate testing
+        isOnline: true,
         vehicleType: vehicleType || 'Standard Vehicle',
         vehiclePlate: vehiclePlate || 'NO-PLATE',
         totalDeliveries: 0
@@ -52,9 +75,7 @@ authRoutes.post('/signup', async (c) => {
     }
 
     return c.json({ success: true, userId, userType: type }, 201);
-
   } catch (err) {
-    console.error("Signup Error:", err);
     return c.json({ error: "Signup Failed", details: err.message }, 500);
   }
 });
@@ -65,20 +86,15 @@ authRoutes.post('/login', async (c) => {
     const body = await c.req.json();
     
     // 1. SMART INPUT HANDLING
-    // We accept 'email', 'username', or the React Team's 'identifier'
-    // We treat whatever they sent as the "login handle"
     let loginHandle = body.email || body.username || body.identifier;
-
-    // Handle the specific array case your Dev Team was sending
-    if (Array.isArray(body) && body.length > 0) {
-        if (body[0] && typeof body[0] === 'object') {
-            loginHandle = body[0].username || body[0].email;
-        }
+    // Handle array case
+    if (Array.isArray(body) && body.length > 0 && body[0] && typeof body[0] === 'object') {
+        loginHandle = body[0].username || body[0].email;
     }
 
     if (!loginHandle) return c.json({ error: 'Missing email or username' }, 400);
 
-    // 2. SMART QUERY: Check if it matches Email OR Username
+    // 2. SMART QUERY
     const user = await db.select().from(users)
       .where(or(
         eq(users.email, loginHandle), 
@@ -86,13 +102,9 @@ authRoutes.post('/login', async (c) => {
       ))
       .limit(1);
     
-    if (user.length === 0) {
-      return c.json({ error: 'User not found' }, 401);
-    }
+    if (user.length === 0) return c.json({ error: 'User not found' }, 401);
 
     // 3. Password Check
-    // (Note: Your dev team sends { username, password } inside an array sometimes. 
-    // We need to grab the password safely).
     let inputPassword = body.password;
     if (Array.isArray(body) && body.length > 0 && body[0] && typeof body[0] === 'object') {
         inputPassword = body[0].password;
@@ -102,20 +114,33 @@ authRoutes.post('/login', async (c) => {
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
-    // 4. If Driver, get Profile
+    // 4. Get Driver Profile (FIXED: Done BEFORE returning)
     let driverData = null;
     if (user[0].userType === 'driver') {
       const profile = await db.select().from(driverProfiles).where(eq(driverProfiles.userId, user[0].id));
       if (profile.length > 0) driverData = profile[0];
     }
 
+    // 5. Generate Token
+    const secret = c.env.JWT_SECRET;
+    if (!secret) return c.json({ error: "Server Error: No Secret" }, 500);
+
+    const token = await sign({
+      id: user[0].id,
+      email: user[0].email,
+      type: user[0].userType,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 // 7 days
+    }, secret);
+
+    // 6. Return Everything
     return c.json({
       success: true,
+      token: token,
       user: {
         id: user[0].id,
         name: `${user[0].firstName} ${user[0].lastName}`,
         email: user[0].email,
-        username: user[0].username, // Return the username too
+        username: user[0].username,
         type: user[0].userType
       },
       driverProfile: driverData
@@ -131,12 +156,13 @@ authRoutes.post('/login', async (c) => {
 // ============================================================================
 const shipmentRoutes = new Hono();
 
+// Create Shipment
 shipmentRoutes.post('/', async (c) => {
   try {
     const body = await c.req.json();
     let userId;
     
-    // 1. Find or Create Guest User
+    // Find or Create Guest User
     const existingUser = await db.select().from(users).where(eq(users.email, body.customerDetails.email)).limit(1);
     
     if (existingUser.length > 0) {
@@ -152,7 +178,7 @@ shipmentRoutes.post('/', async (c) => {
       userId = newUser[0].id;
     }
 
-    // 2. Create Shipment
+    // Create Shipment
     const newShipment = await db.insert(shipments).values({
       customerId: userId,
       status: 'PENDING',
@@ -177,6 +203,7 @@ shipmentRoutes.post('/', async (c) => {
   }
 });
 
+// List Shipments
 shipmentRoutes.get('/', async (c) => {
   try {
     const result = await db.select().from(shipments).orderBy(desc(shipments.createdAt));
@@ -186,8 +213,28 @@ shipmentRoutes.get('/', async (c) => {
   }
 });
 
+// Get My Orders (For Customer App)
+shipmentRoutes.get('/my-orders', async (c) => {
+  try {
+    const email = c.req.query('email');
+    if (!email) return c.json({ error: "Email required" }, 400);
+
+    const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (user.length === 0) return c.json({ shipments: [] });
+
+    const myShipments = await db.select()
+      .from(shipments)
+      .where(eq(shipments.customerId, user[0].id))
+      .orderBy(desc(shipments.createdAt));
+
+    return c.json({ success: true, shipments: myShipments });
+  } catch (err) {
+    return c.json({ error: "Fetch failed", details: err.message }, 500);
+  }
+});
+
 // ============================================================================
-// 3. ADMIN ROUTES (Dashboard API)
+// 3. ADMIN ROUTES
 // ============================================================================
 const adminRoutes = new Hono();
 
@@ -199,7 +246,6 @@ adminRoutes.get('/stats', async (c) => {
     const delivered = await db.select({ count: sql`count(*)` }).from(shipments).where(eq(shipments.status, 'DELIVERED'));
     const revenue = await db.select({ total: sql`sum(${shipments.priceCents})` }).from(shipments).where(eq(shipments.status, 'DELIVERED'));
 
-    // Safe Driver Stats Fetching
     let totalDrivers = 0;
     let onlineCount = 0;
     try {
@@ -207,9 +253,7 @@ adminRoutes.get('/stats', async (c) => {
         const dOnline = await db.select({ count: sql`count(*)` }).from(driverProfiles).where(eq(driverProfiles.isOnline, true));
         totalDrivers = dTotal[0].count;
         onlineCount = dOnline[0].count;
-    } catch (e) {
-        console.log("Driver stats skipped: Table might not exist yet.");
-    }
+    } catch (e) {}
 
     return c.json({
       shipments: {
@@ -231,21 +275,8 @@ adminRoutes.get('/stats', async (c) => {
   }
 });
 
-adminRoutes.get('/shipments', async (c) => {
-  try {
-    const status = c.req.query('status');
-    let query = db.select().from(shipments).orderBy(desc(shipments.createdAt));
-    if (status) query = db.select().from(shipments).where(eq(shipments.status, status)).orderBy(desc(shipments.createdAt));
-    const list = await query;
-    return c.json({ shipments: list });
-  } catch (err) {
-    return c.json({ error: "Admin List Failed", details: err.message }, 500);
-  }
-});
-
 adminRoutes.get('/drivers', async (c) => {
   try {
-    // 1. Safe Join - Joins Users with DriverProfiles
     const list = await db.select({
       id: users.id,
       name: users.firstName,
@@ -259,123 +290,109 @@ adminRoutes.get('/drivers', async (c) => {
     .where(eq(users.userType, 'driver'));
 
     return c.json({ drivers: list });
-
   } catch (err) {
-    return c.json({ 
-        error: "Driver List Failed", 
-        message: err.message,
-        hint: "Run the SQL command to create 'driver_profiles' table."
-    }, 500);
+    return c.json({ error: "Driver List Failed", message: err.message }, 500);
   }
 });
 
-// Assign Driver
 adminRoutes.put('/shipments/:id/assign', async (c) => {
   try {
     const shipmentId = c.req.param('id');
     const { driverId } = await c.req.json();
-
     if (!driverId) return c.json({ error: 'Driver ID is required' }, 400);
 
     const updated = await db.update(shipments)
-      .set({ 
-        driverId: driverId,
-        status: 'ASSIGNED'
-      })
+      .set({ driverId: driverId, status: 'ASSIGNED' })
       .where(eq(shipments.id, shipmentId))
       .returning();
 
     if (updated.length === 0) return c.json({ error: 'Shipment not found' }, 404);
-
     return c.json({ success: true, shipment: updated[0] });
   } catch (err) {
     return c.json({ error: err.message }, 500);
   }
 });
-authRoutes.get('/signup', (c) => {
-  return c.json({ message: "Alive! The API is connected. Now send a POST request." });
-});
-// TEMPORARY: Test route to prove /api/auth/login exists
-authRoutes.get('/login', (c) => {
-  return c.json({ 
-    status: "online", 
-    message: "Login endpoint is reachable! Send a POST request with email/password to sign in." 
-  });
-});
 
 // ============================================================================
-// 4. DRIVER ROUTES (Job Board & Acceptance)
+// 4. DRIVER ROUTES
 // ============================================================================
 const driverRoutes = new Hono();
 
-// 1. Get Profile (Keep this for the frontend check)
 driverRoutes.get('/me', (c) => c.json({ msg: 'Driver profile active' }));
 
-// 2. See Available Jobs (Only shows PENDING jobs)
 driverRoutes.get('/shipments/available', async (c) => {
   try {
     const openJobs = await db.select()
       .from(shipments)
       .where(eq(shipments.status, 'PENDING'))
       .orderBy(desc(shipments.createdAt));
-    
     return c.json({ success: true, jobs: openJobs });
   } catch (err) {
     return c.json({ error: "Failed to fetch jobs", details: err.message }, 500);
   }
 });
 
-// 3. Accept a Job
 driverRoutes.post('/shipments/:id/accept', async (c) => {
   try {
     const shipmentId = c.req.param('id');
-    const { driverId } = await c.req.json(); // Frontend must send { "driverId": "..." }
+    const { driverId } = await c.req.json();
 
     if (!driverId) return c.json({ error: "Driver ID missing" }, 400);
 
-    // Atomic Update: Only update if it is still PENDING
-    // This prevents two drivers from grabbing the same job
     const result = await db.update(shipments)
-      .set({
-        driverId: driverId,
-        status: 'ASSIGNED'
-      })
-      .where(and(
-        eq(shipments.id, shipmentId),
-        eq(shipments.status, 'PENDING')
-      ))
+      .set({ driverId: driverId, status: 'ASSIGNED' })
+      .where(and(eq(shipments.id, shipmentId), eq(shipments.status, 'PENDING')))
       .returning();
 
-    if (result.length === 0) {
-      return c.json({ error: "Job no longer available or already taken" }, 409);
-    }
+    if (result.length === 0) return c.json({ error: "Job unavailable" }, 409);
 
-    // Increment Driver's "Total Deliveries" count (Optional nice-to-have)
     await db.update(driverProfiles)
       .set({ totalDeliveries: sql`${driverProfiles.totalDeliveries} + 1` })
       .where(eq(driverProfiles.userId, driverId));
 
     return c.json({ success: true, job: result[0] });
-
   } catch (err) {
     return c.json({ error: "Accept failed", details: err.message }, 500);
   }
 });
 
-// 4. See My Jobs (Active & Past)
+// See My Jobs (History)
 driverRoutes.get('/shipments/my-jobs', async (c) => {
   try {
     const driverId = c.req.query('driverId');
     if (!driverId) return c.json({ error: "Driver ID required" }, 400);
-
     const myJobs = await db.select()
       .from(shipments)
       .where(eq(shipments.driverId, driverId))
       .orderBy(desc(shipments.createdAt));
-
     return c.json({ success: true, jobs: myJobs });
   } catch (err) {
     return c.json({ error: "Failed to fetch history", details: err.message }, 500);
+  }
+});
+
+//Active Route protected by Middleware
+driverRoutes.use('/active', authMiddleware);
+
+driverRoutes.get('/active', async (c) => {
+  try {
+    // Get Driver ID from the Token Payload
+    const payload = c.get('jwtPayload');
+    const driverId = payload.id; 
+
+    if (!driverId) return c.json({ error: "Token missing driver ID" }, 400);
+
+    const activeJobs = await db.select()
+      .from(shipments)
+      .where(and(
+        eq(shipments.driverId, driverId),
+        or(eq(shipments.status, 'ASSIGNED'), eq(shipments.status, 'PICKED_UP'))
+      ))
+      .orderBy(desc(shipments.createdAt));
+
+    return c.json({ success: true, orders: activeJobs });
+  } catch (err) {
+    return c.json({ error: "Failed to fetch active orders", details: err.message }, 500);
   }
 });
 
