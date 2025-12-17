@@ -312,7 +312,28 @@ adminRoutes.put('/shipments/:id/assign', async (c) => {
     return c.json({ error: err.message }, 500);
   }
 });
-
+// GET /api/admin/shipments
+// This is what the Ops Dashboard fetches to fill the table
+adminRoutes.get('/shipments', async (c) => {
+  try {
+    const status = c.req.query('status');
+    
+    let query = db.select().from(shipments).orderBy(desc(shipments.createdAt));
+    
+    // Optional: Filter by status if sent
+    if (status) {
+        query = db.select().from(shipments)
+          .where(eq(shipments.status, status))
+          .orderBy(desc(shipments.createdAt));
+    }
+    
+    const list = await query;
+    return c.json({ shipments: list });
+    
+  } catch (err) {
+    return c.json({ error: "Admin List Failed", details: err.message }, 500);
+  }
+});
 // ============================================================================
 // 4. DRIVER ROUTES
 // ============================================================================
@@ -395,7 +416,62 @@ driverRoutes.get('/active', async (c) => {
     return c.json({ error: "Failed to fetch active orders", details: err.message }, 500);
   }
 });
+//Driver: Mark as PICKED UP (Now saves photo!)
+driverRoutes.post('/shipments/:id/pickup', async (c) => {
+  try {
+    const shipmentId = c.req.param('id');
+    const { driverId, photoUrl } = await c.req.json(); // 👈 Accept photoUrl
 
+    const result = await db.update(shipments)
+      .set({ 
+        status: 'PICKED_UP',
+        pickupPhotoUrl: photoUrl || null // 👈 Save it here
+      })
+      .where(and(
+        eq(shipments.id, shipmentId),
+        eq(shipments.driverId, driverId),
+        eq(shipments.status, 'ASSIGNED')
+      ))
+      .returning();
+
+    if (result.length === 0) return c.json({ error: "Cannot pick up. Check status." }, 400);
+    return c.json({ success: true, status: 'PICKED_UP', shipment: result[0] });
+  } catch (err) {
+    return c.json({ error: "Pickup failed", details: err.message }, 500);
+  }
+});
+
+//Driver: Mark as DELIVERED (Now saves photo!)
+driverRoutes.post('/shipments/:id/deliver', async (c) => {
+  try {
+    const shipmentId = c.req.param('id');
+    const { driverId, photoUrl } = await c.req.json();
+
+    const result = await db.update(shipments)
+      .set({ 
+        status: 'DELIVERED',
+        dropoffBy: new Date(), 
+        deliveryPhotoUrl: photoUrl || null
+      })
+      .where(and(
+        eq(shipments.id, shipmentId),
+        eq(shipments.driverId, driverId),
+        eq(shipments.status, 'PICKED_UP')
+      ))
+      .returning();
+
+    if (result.length === 0) return c.json({ error: "Cannot deliver. Check status." }, 400);
+
+    // Update stats
+    await db.update(driverProfiles)
+      .set({ totalDeliveries: sql`${driverProfiles.totalDeliveries} + 1` })
+      .where(eq(driverProfiles.userId, driverId));
+
+    return c.json({ success: true, status: 'DELIVERED', shipment: result[0] });
+  } catch (err) {
+    return c.json({ error: "Delivery failed", details: err.message }, 500);
+  }
+});
 // ============================================================================
 // 5. UPLOAD ROUTE (For Proof of Delivery)
 // ============================================================================
