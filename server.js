@@ -4,7 +4,6 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { etag } from 'hono/etag';
 import { shipmentRoutes, driverRoutes, adminRoutes, authRoutes, uploadRoutes } from './routes.js';
-import { getPhoto } from './storage.js';
 import { db } from './db.js';
 import { locations } from './schema.js';
 
@@ -705,6 +704,8 @@ app.get('/photos/:key', async (c) => {
 
   if (!bucket) return c.json({ error: 'Photo storage not configured' }, 500);
 
+  const photo = await getPhoto(bucket, key);
+    
   if (!photo) return c.json({ error: 'Photo not found' }, 404);
 
   return new Response(photo.body, {
