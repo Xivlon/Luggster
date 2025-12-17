@@ -396,4 +396,33 @@ driverRoutes.get('/active', async (c) => {
   }
 });
 
-export { shipmentRoutes, adminRoutes, driverRoutes, authRoutes };
+// ============================================================================
+// 5. UPLOAD ROUTE (For Proof of Delivery)
+// ============================================================================
+const uploadRoutes = new Hono();
+
+// POST /api/upload
+// The App sends the file here -> We save to R2 -> We return the URL
+uploadRoutes.post('/', async (c) => {
+  try {
+    const body = await c.req.parseBody(); // Parse "multipart/form-data"
+    const file = body['file']; // The App must name the field "file"
+
+    if (!file) return c.json({ error: "No file uploaded" }, 400);
+
+    // 1. Generate a unique name (e.g., "proof-12345.jpg")
+    const fileName = `proof-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+
+    // 2. Save directly to R2 Bucket
+    await c.env.MY_BUCKET.put(fileName, file);
+
+    // 3. Return the Public URL
+    const publicUrl = `https://2c905270a590526b80946b04b64c9a4e.r2.cloudflarestorage.com/luggster-photos/${fileName}`; 
+
+    return c.json({ success: true, url: publicUrl });
+
+  } catch (err) {
+    return c.json({ error: "Upload failed", details: err.message }, 500);
+  }
+});
+export { shipmentRoutes, adminRoutes, driverRoutes, authRoutes, uploadRoutes };
