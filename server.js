@@ -667,8 +667,6 @@ async function getPhoto(bucket, key) {
 // ============================================================================
 // UPLOAD ROUTES (The "Bridge")
 // ============================================================================
-const uploadRoutes = new Hono();
-
 uploadRoutes.post('/', async (c) => {
   try {
     const body = await c.req.parseBody(); 
