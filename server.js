@@ -705,8 +705,6 @@ app.get('/photos/:key', async (c) => {
 
   if (!bucket) return c.json({ error: 'Photo storage not configured' }, 500);
 
-  const photo = await getPhoto(bucket, key);
-
   if (!photo) return c.json({ error: 'Photo not found' }, 404);
 
   return new Response(photo.body, {
