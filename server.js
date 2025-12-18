@@ -3,8 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { etag } from 'hono/etag';
-import { shipmentRoutes, driverRoutes, adminRoutes, authRoutes } from './routes.js';
-import { getPhoto } from './storage.js';
+import { shipmentRoutes, driverRoutes, adminRoutes, authRoutes, uploadRoutes } from './routes.js';
 import { db } from './db.js';
 import { locations } from './schema.js';
 
@@ -646,23 +645,69 @@ app.get('/api/locations', async (c) => {
 });
 
 // ============================================================================
-// PHOTO SERVING ROUTE
+// PHOTO UTILS (Helper Function)
 // ============================================================================
+async function getPhoto(bucket, key) {
+  try {
+    const object = await bucket.get(key);
+    if (!object) return null;
 
-app.get('/photos/*', async (c) => {
+    return {
+      body: object.body,
+      contentType: object.httpMetadata?.contentType || 'application/octet-stream',
+      etag: object.httpEtag,
+    };
+  } catch (e) {
+    console.error("R2 Error:", e);
+    return null;
+  }
+}
+
+// ============================================================================
+// UPLOAD ROUTES (The "Bridge")
+// ============================================================================
+uploadRoutes.post('/', async (c) => {
+  try {
+    const body = await c.req.parseBody(); 
+    const file = body['file']; 
+
+    if (!file) return c.json({ error: "No file uploaded" }, 400);
+
+    // 1. Generate unique name
+    const fileName = `proof-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+
+    // 2. Save to R2 (Using the R2_PHOTOS binding)
+    await c.env.R2_PHOTOS.put(fileName, file, {
+      httpMetadata: { contentType: file.type || 'image/jpeg' }
+    });
+
+    // 3. Return the URL that points to YOUR Worker, not R2 directly
+    // This makes the "Photo Serving Route" below work.
+    const workerUrl = `${new URL(c.req.url).origin}/photos/${fileName}`;
+
+    return c.json({ success: true, url: workerUrl });
+
+  } catch (err) {
+    return c.json({ error: "Upload failed", details: err.message }, 500);
+  }
+});
+
+// ============================================================================
+// MOUNT ROUTES
+// ============================================================================
+app.route('/api/upload', uploadRoutes);
+
+// VIEW PHOTO ROUTE
+app.get('/photos/:key', async (c) => {
   const bucket = c.env.R2_PHOTOS;
-  
-  if (!bucket) {
-    return c.json({ error: 'Photo storage not configured' }, 500);
-  }
-  
-  const key = c.req.path.replace('/photos/', '');
+  const key = c.req.param('key'); // cleaner than replace()
+
+  if (!bucket) return c.json({ error: 'Photo storage not configured' }, 500);
+
   const photo = await getPhoto(bucket, key);
-  
-  if (!photo) {
-    return c.json({ error: 'Photo not found' }, 404);
-  }
-  
+    
+  if (!photo) return c.json({ error: 'Photo not found' }, 404);
+
   return new Response(photo.body, {
     headers: {
       'Content-Type': photo.contentType,
