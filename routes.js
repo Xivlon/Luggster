@@ -472,6 +472,8 @@ driverRoutes.post('/shipments/:id/deliver', async (c) => {
     return c.json({ error: "Delivery failed", details: err.message }, 500);
   }
 });
+
+export { shipmentRoutes, adminRoutes, driverRoutes, authRoutes };
 // ============================================================================
 // 5. UPLOAD ROUTE (For Proof of Delivery)
 // ============================================================================
