@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { eq, desc } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { db } from './db.js';
-import { shipments, customers } from './schema.js';
+import { orders, customers } from './schema.js';
 
 // ============================================================================
 // AUTH ROUTES (Customer Registration & Login)
@@ -107,7 +107,7 @@ orderRoutes.post('/', async (c) => {
     }
 
     // Validate that customer exists
-    const customer = await db.select({ id: users.id }).from(users).where(eq(users.id, body.customerId)).limit(1);
+    const customer = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, body.customerId)).limit(1);
     if (customer.length === 0) {
       return c.json({ error: 'Customer not found' }, 404);
     }
