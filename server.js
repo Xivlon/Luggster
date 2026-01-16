@@ -4,7 +4,7 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { etag } from 'hono/etag';
 import { db } from './db.js';
-import { locations, orders, customers } from './schema.js';
+import { locations, shipments, users } from './schema.js';
 
 // ============================================================================
 // FRONTEND HTML TEMPLATES
@@ -641,8 +641,8 @@ app.post('/api/shipments', async (c) => {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
-    // Create order/shipment
-    const newOrder = await db.insert(orders).values({
+    // Create shipment
+    const newShipment = await db.insert(shipments).values({
       customerId: body.customerId,
       originAirport: body.originAirport || null,
       destinationAirport: body.destinationAirport || null,
@@ -659,7 +659,7 @@ app.post('/api/shipments', async (c) => {
       notes: body.notes || null
     }).returning();
 
-    return c.json(newOrder[0], 201);
+    return c.json(newShipment[0], 201);
   } catch (err) {
     return c.json({ error: 'Shipment creation failed', details: err.message }, 500);
   }
