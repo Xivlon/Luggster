@@ -3,10 +3,29 @@ import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema.js';
 
-// Database connection string (use environment variable in production)
-const connectionString = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_wrA2IV4GaHzD@ep-proud-cake-a4m2vdkf-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+let dbInstance = null;
 
-const client = neon(connectionString);
+// Lazy-load the database connection
+function initializeDatabase() {
+  if (dbInstance) {
+    return dbInstance;
+  }
 
-// Export drizzle instance for use across the application
-export const db = drizzle(client, { schema });
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error('DATABASE_URL environment variable must be set for database connection');
+  }
+
+  const client = neon(connectionString);
+  dbInstance = drizzle(client, { schema });
+  return dbInstance;
+}
+
+// Export a getter that lazily initializes the database
+export const db = new Proxy({}, {
+  get(target, prop) {
+    const instance = initializeDatabase();
+    return instance[prop];
+  },
+});

@@ -30,3 +30,4 @@ logs/
 # Temporary files
 tmp/
 temp/
+test_bcrypt_tmp.js

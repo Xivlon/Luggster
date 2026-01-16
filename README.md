@@ -1,6 +1,6 @@
 # Order Creation Platform
 
-A pure order creation API built for Cloudflare Workers with Hono, Neon PostgreSQL, and Drizzle ORM.
+A pure order creation API built for Cloudflare Workers with Hono, Neon PostgreSQL, and Drizzle ORM. (For best experience use cloudflare web service)
 
 ## Tech Stack
 
