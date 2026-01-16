@@ -4,7 +4,7 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { etag } from 'hono/etag';
 import { db } from './db.js';
-import { locations, shipments, users } from './schema.js';
+import { locations, shipments } from './schema.js';
 
 // ============================================================================
 // FRONTEND HTML TEMPLATES
