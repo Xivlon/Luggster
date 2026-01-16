@@ -22,10 +22,12 @@ function initializeDatabase() {
   return dbInstance;
 }
 
-// Export a getter that lazily initializes the database
+// Export a getter that lazily initializes the database with proper method binding
 export const db = new Proxy({}, {
   get(target, prop) {
     const instance = initializeDatabase();
-    return instance[prop];
+    const value = instance[prop];
+    // Bind functions to preserve 'this' context for ORM methods
+    return typeof value === 'function' ? value.bind(instance) : value;
   },
 });
