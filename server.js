@@ -71,7 +71,7 @@ const dispatcherHtml = `<!DOCTYPE html>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
-                            <input type="email" id="custEmail" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="john@example.com" required>
+                            <input type="email" id="custEmail" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="john@example.com" required>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
@@ -159,7 +159,7 @@ const dispatcherHtml = `<!DOCTYPE html>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Total Price</label>
                             <div class="relative">
                                 <span class="absolute left-3 top-2.5 text-slate-400 font-bold">$</span>
-                                <input id="finalPrice" type="number" min="0.01" step="0.01" value="0.00" class="w-full pl-7 p-3 bg-slate-50 border border-blue-200 rounded-lg font-black text-slate-700 text-xl select-none">
+                                <input id="finalPrice" type="number" min="0.01" step="0.01" value="0.00" class="w-full pl-7 p-3 bg-slate-50 border border-blue-200 rounded-lg font-black text-slate-700 text-xl">
                             </div>
                         </div>
 
@@ -311,6 +311,7 @@ const dispatcherHtml = `<!DOCTYPE html>
             const price = parseFloat(document.getElementById('finalPrice').value) || 0;
 
             if (!name || !email) return alert("Name and email are required");
+            // Email validation (duplicated from backend for immediate user feedback)
             const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailPattern.test(email)) return alert("Please enter a valid email address");
             if (!lat1 || !lat2) return alert("Please select both Pickup and Dropoff points on the map.");
