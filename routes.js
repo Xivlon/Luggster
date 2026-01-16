@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { eq, desc } from 'drizzle-orm';
 import { db } from './db.js';
 import { shipments, users } from './schema.js';
+import bcrypt from 'bcryptjs';
 
 // ============================================================================
 // AUTH ROUTES (Customer Registration & Login)
@@ -25,10 +26,13 @@ authRoutes.post('/signup', async (c) => {
       return c.json({ error: 'User already exists' }, 409);
     }
 
+    // Hash password before storing
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     // Create customer user
     const newUser = await db.insert(users).values({
       email,
-      password,
+      password: hashedPassword,
       firstName: firstName || 'Customer',
       lastName: lastName || 'User',
       phone: phone || null
@@ -63,8 +67,9 @@ authRoutes.post('/login', async (c) => {
       return c.json({ error: 'User not found' }, 401);
     }
 
-    // Verify password
-    if (user[0].password !== password) {
+    // Verify password using bcrypt
+    const isPasswordValid = await bcrypt.compare(password, user[0].password);
+    if (!isPasswordValid) {
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
