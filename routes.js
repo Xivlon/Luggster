@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { eq, desc } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { db } from './db.js';
 import { orders, customers } from './schema.js';
 
@@ -101,20 +102,51 @@ orderRoutes.post('/', async (c) => {
     const body = await c.req.json();
 
     // Validate required fields
-    if (!body.customerId || !body.originAirport || !body.destinationAirport ||
+    if (!body.originAirport || !body.destinationAirport ||
         !body.pickupAddress || !body.dropoffAddress || body.priceCents === undefined) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
-    // Validate that customer exists
-    const customer = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, body.customerId)).limit(1);
-    if (customer.length === 0) {
-      return c.json({ error: 'Customer not found' }, 404);
+    // Handle customer: either use provided customerId or find/create by email
+    let customerId = body.customerId;
+
+    if (!customerId && body.customerEmail) {
+      // Validate email format
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(body.customerEmail)) {
+        return c.json({ error: 'Invalid email address format' }, 400);
+      }
+
+      // Find or create customer by email (guest order flow)
+      const existing = await db.select().from(customers).where(eq(customers.email, body.customerEmail)).limit(1);
+
+      if (existing.length > 0) {
+        customerId = existing[0].id;
+      } else {
+        // Create new guest customer
+        // Parse name with better handling for edge cases
+        const nameParts = body.customerName?.trim().split(/\s+/) || [];
+        const firstName = nameParts[0] || 'Guest';
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'User';
+
+        const newCustomer = await db.insert(customers).values({
+          email: body.customerEmail,
+          password: await bcrypt.hash('guest-' + crypto.randomUUID(), 10), // Cryptographically secure random password
+          firstName: firstName,
+          lastName: lastName,
+          phone: body.customerPhone || null
+        }).returning({ id: customers.id });
+        customerId = newCustomer[0].id;
+      }
+    }
+
+    if (!customerId) {
+      return c.json({ error: 'Either customerId or customerEmail is required' }, 400);
     }
 
     // Create order/shipment
-    const newOrder = await db.insert(orders).values({
-      customerId: body.customerId,
+    const newOrder = await db.insert(shipments).values({
+      customerId: customerId,
       originAirport: body.originAirport,
       destinationAirport: body.destinationAirport,
       pickupAddress: body.pickupAddress,
