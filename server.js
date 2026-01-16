@@ -71,7 +71,7 @@ const dispatcherHtml = `<!DOCTYPE html>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
-                            <input type="email" id="custEmail" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none" placeholder="john@example.com">
+                            <input type="email" id="custEmail" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="john@example.com" required>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
@@ -159,7 +159,7 @@ const dispatcherHtml = `<!DOCTYPE html>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Total Price</label>
                             <div class="relative">
                                 <span class="absolute left-3 top-2.5 text-slate-400 font-bold">$</span>
-                                <input id="finalPrice" value="0.00" readonly class="w-full pl-7 p-3 bg-slate-50 border border-blue-200 rounded-lg font-black text-slate-700 text-xl cursor-not-allowed select-none">
+                                <input id="finalPrice" type="number" min="0.01" step="0.01" value="0.00" class="w-full pl-7 p-3 bg-slate-50 border border-blue-200 rounded-lg font-black text-slate-700 text-xl">
                             </div>
                         </div>
 
@@ -311,11 +311,15 @@ const dispatcherHtml = `<!DOCTYPE html>
             const price = parseFloat(document.getElementById('finalPrice').value) || 0;
 
             if (!name || !email) return alert("Name and email are required");
+            // Email validation (duplicated from backend for immediate user feedback)
+            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailPattern.test(email)) return alert("Please enter a valid email address");
             if (!lat1 || !lat2) return alert("Please select both Pickup and Dropoff points on the map.");
             if (price <= 0) return alert("Price must be greater than 0");
 
             btn.disabled = true;
-            btn.innerHTML = '<i class="ph ph-spinner animate-spin text-xl"></i> Creating...';
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 mr-2 animate-spin"></i> Creating...';
+            lucide.createIcons();
             msg.className = 'hidden';
 
             const payload = {
@@ -350,9 +354,32 @@ const dispatcherHtml = `<!DOCTYPE html>
                     msg.innerHTML = '✅ <b>Success!</b> Order #' + data.id.slice(0,8) + ' Created.';
                     msg.className = "mt-4 p-3 rounded-lg text-sm text-center bg-green-100 text-green-800 border border-green-200 block";
 
+                    // Reset all form fields after successful order creation
                     document.getElementById('custName').value = "";
                     document.getElementById('custEmail').value = "";
+                    document.getElementById('custPhone').value = "";
+                    document.getElementById('originInput').value = "";
+                    document.getElementById('destInput').value = "";
+                    document.getElementById('pickupLat').value = "";
+                    document.getElementById('pickupLng').value = "";
+                    document.getElementById('dropoffLat').value = "";
+                    document.getElementById('dropoffLng').value = "";
+                    document.getElementById('pickupDate').value = "";
+                    document.getElementById('pickupTime').value = "";
+                    document.getElementById('dropoffDate').value = "";
+                    document.getElementById('dropoffTime').value = "";
+                    document.getElementById('finalPrice').value = "0.00";
                     document.getElementById('internalNotes').value = "";
+
+                    // Clear map markers
+                    if (window.pickupMarker) {
+                        map.removeLayer(window.pickupMarker);
+                        window.pickupMarker = null;
+                    }
+                    if (window.dropoffMarker) {
+                        map.removeLayer(window.dropoffMarker);
+                        window.dropoffMarker = null;
+                    }
                 } else {
                     throw new Error(data.error || "Server rejected request");
                 }
