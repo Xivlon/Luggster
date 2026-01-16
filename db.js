@@ -1,14 +1,15 @@
-// db.js
+// db.js - Neon PostgreSQL Database Connection
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema.js';
 
-const connectionString = "postgresql://neondb_owner:npg_wrA2IV4GaHzD@ep-proud-cake-a4m2vdkf-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+// Database connection string (must be provided via environment variable)
+const connectionString = process.env.DATABASE_URL;
 
+if (!connectionString) {
+  throw new Error('DATABASE_URL environment variable must be set for database connection');
+}
 const client = neon(connectionString);
 
-// This simple export is exactly what server.js is looking for
+// Export drizzle instance for use across the application
 export const db = drizzle(client, { schema });
-export function getDb(c) {
-  return db;
-}
