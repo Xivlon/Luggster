@@ -106,7 +106,7 @@ orderRoutes.post('/', async (c) => {
     }
 
     // Create order/shipment
-    const newOrder = await db.insert(shipments).values({
+    const newOrder = await db.insert(orders).values({
       customerId: body.customerId,
       originAirport: body.originAirport,
       destinationAirport: body.destinationAirport,
@@ -132,7 +132,7 @@ orderRoutes.post('/', async (c) => {
 // GET /api/orders - List all orders
 orderRoutes.get('/', async (c) => {
   try {
-    const result = await db.select().from(shipments).orderBy(desc(shipments.createdAt));
+    const result = await db.select().from(orders).orderBy(desc(orders.createdAt));
     return c.json({ orders: result });
   } catch (err) {
     return c.json({ error: 'Failed to fetch orders', details: err.message }, 500);
@@ -143,7 +143,7 @@ orderRoutes.get('/', async (c) => {
 orderRoutes.get('/:id', async (c) => {
   try {
     const orderId = c.req.param('id');
-    const order = await db.select().from(shipments).where(eq(shipments.id, orderId));
+    const order = await db.select().from(orders).where(eq(orders.id, orderId));
 
     if (order.length === 0) {
       return c.json({ error: 'Order not found' }, 404);
@@ -165,9 +165,9 @@ orderRoutes.get('/customer/:customerId', async (c) => {
     }
 
     const customerOrders = await db.select()
-      .from(shipments)
-      .where(eq(shipments.customerId, customerId))
-      .orderBy(desc(shipments.createdAt));
+      .from(orders)
+      .where(eq(orders.customerId, customerId))
+      .orderBy(desc(orders.createdAt));
 
     return c.json({ orders: customerOrders });
   } catch (err) {

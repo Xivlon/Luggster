@@ -26,7 +26,7 @@ export const locations = pgTable('locations', {
 });
 
 // 4. Orders Table (renamed from shipments for clarity)
-export const shipments = pgTable('orders', {
+export const orders = pgTable('orders', {
   id: uuid('id').defaultRandom().primaryKey(),
   customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
   status: orderStatusEnum('status').notNull().default('PENDING'),
