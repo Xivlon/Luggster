@@ -96,14 +96,40 @@ orderRoutes.post('/', async (c) => {
     const body = await c.req.json();
 
     // Validate required fields
-    if (!body.customerId || !body.originAirport || !body.destinationAirport ||
+    if (!body.originAirport || !body.destinationAirport ||
         !body.pickupAddress || !body.dropoffAddress || body.priceCents === undefined) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
+    // Handle customer: either use provided customerId or find/create by email
+    let customerId = body.customerId;
+
+    if (!customerId && body.customerEmail) {
+      // Find or create customer by email (guest order flow)
+      const existing = await db.select().from(users).where(eq(users.email, body.customerEmail)).limit(1);
+
+      if (existing.length > 0) {
+        customerId = existing[0].id;
+      } else {
+        // Create new guest customer
+        const newCustomer = await db.insert(users).values({
+          email: body.customerEmail,
+          password: 'guest-' + Math.random().toString(36).slice(2), // Random temporary password
+          firstName: body.customerName?.split(' ')[0] || 'Guest',
+          lastName: body.customerName?.split(' ').slice(1).join(' ') || 'User',
+          phone: body.customerPhone || null
+        }).returning({ id: users.id });
+        customerId = newCustomer[0].id;
+      }
+    }
+
+    if (!customerId) {
+      return c.json({ error: 'Either customerId or customerEmail is required' }, 400);
+    }
+
     // Create order/shipment
     const newOrder = await db.insert(shipments).values({
-      customerId: body.customerId,
+      customerId: customerId,
       originAirport: body.originAirport,
       destinationAirport: body.destinationAirport,
       pickupAddress: body.pickupAddress,
