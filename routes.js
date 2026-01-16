@@ -101,6 +101,12 @@ orderRoutes.post('/', async (c) => {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
+    // Validate that customer exists
+    const customer = await db.select().from(users).where(eq(users.id, body.customerId)).limit(1);
+    if (customer.length === 0) {
+      return c.json({ error: 'Customer not found' }, 404);
+    }
+
     // Create order/shipment
     const newOrder = await db.insert(shipments).values({
       customerId: body.customerId,
