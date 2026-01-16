@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { eq, desc } from 'drizzle-orm';
+import bcrypt from 'bcryptjs';
 import { db } from './db.js';
 import { shipments, customers } from './schema.js';
 
