@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { eq, desc } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { db } from './db.js';
 import { orders, customers } from './schema.js';
 
@@ -110,20 +111,31 @@ orderRoutes.post('/', async (c) => {
     let customerId = body.customerId;
 
     if (!customerId && body.customerEmail) {
+      // Validate email format
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(body.customerEmail)) {
+        return c.json({ error: 'Invalid email address format' }, 400);
+      }
+
       // Find or create customer by email (guest order flow)
-      const existing = await db.select().from(users).where(eq(users.email, body.customerEmail)).limit(1);
+      const existing = await db.select().from(customers).where(eq(customers.email, body.customerEmail)).limit(1);
 
       if (existing.length > 0) {
         customerId = existing[0].id;
       } else {
         // Create new guest customer
-        const newCustomer = await db.insert(users).values({
+        // Parse name with better handling for edge cases
+        const nameParts = body.customerName?.trim().split(/\s+/) || [];
+        const firstName = nameParts[0] || 'Guest';
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'User';
+
+        const newCustomer = await db.insert(customers).values({
           email: body.customerEmail,
-          password: 'guest-' + Math.random().toString(36).slice(2), // Random temporary password
-          firstName: body.customerName?.split(' ')[0] || 'Guest',
-          lastName: body.customerName?.split(' ').slice(1).join(' ') || 'User',
+          password: await bcrypt.hash('guest-' + crypto.randomUUID(), 10), // Cryptographically secure random password
+          firstName: firstName,
+          lastName: lastName,
           phone: body.customerPhone || null
-        }).returning({ id: users.id });
+        }).returning({ id: customers.id });
         customerId = newCustomer[0].id;
       }
     }
