@@ -1,8 +1,7 @@
 import { Hono } from 'hono';
 import { eq, desc } from 'drizzle-orm';
 import { db } from './db.js';
-import { shipments, users } from './schema.js';
-import bcrypt from 'bcryptjs';
+import { shipments, customers } from './schema.js';
 
 // ============================================================================
 // AUTH ROUTES (Customer Registration & Login)
@@ -21,7 +20,7 @@ authRoutes.post('/signup', async (c) => {
     }
 
     // Check if user exists
-    const existing = await db.select().from(users).where(eq(users.email, email));
+    const existing = await db.select().from(customers).where(eq(customers.email, email));
     if (existing.length > 0) {
       return c.json({ error: 'User already exists' }, 409);
     }
@@ -30,13 +29,13 @@ authRoutes.post('/signup', async (c) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create customer user
-    const newUser = await db.insert(users).values({
+    const newUser = await db.insert(customers).values({
       email,
       password: hashedPassword,
       firstName: firstName || 'Customer',
       lastName: lastName || 'User',
       phone: phone || null
-    }).returning({ id: users.id, email: users.email });
+    }).returning({ id: customers.id, email: customers.email });
 
     return c.json({
       success: true,
@@ -59,8 +58,8 @@ authRoutes.post('/login', async (c) => {
     }
 
     // Find user by email
-    const user = await db.select().from(users)
-      .where(eq(users.email, email))
+    const user = await db.select().from(customers)
+      .where(eq(customers.email, email))
       .limit(1);
 
     if (user.length === 0) {
@@ -156,7 +155,7 @@ orderRoutes.get('/:id', async (c) => {
   }
 });
 
-// GET /api/orders?customerId=<id> - Get customer's orders
+// GET /api/orders/customer/:customerId - Get customer's orders
 orderRoutes.get('/customer/:customerId', async (c) => {
   try {
     const customerId = c.req.param('customerId');

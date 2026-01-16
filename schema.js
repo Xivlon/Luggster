@@ -5,7 +5,7 @@ import { relations } from 'drizzle-orm';
 export const orderStatusEnum = pgEnum('order_status', ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED']);
 
 // 2. Customers Table
-export const users = pgTable('customers', {
+export const customers = pgTable('customers', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),
   firstName: varchar('first_name', { length: 100 }).notNull(),
@@ -28,7 +28,7 @@ export const locations = pgTable('locations', {
 // 4. Orders Table (renamed from shipments for clarity)
 export const shipments = pgTable('orders', {
   id: uuid('id').defaultRandom().primaryKey(),
-  customerId: uuid('customer_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
   status: orderStatusEnum('status').notNull().default('PENDING'),
 
   // Location Data
@@ -53,13 +53,13 @@ export const shipments = pgTable('orders', {
 });
 
 // 5. Relations
-export const customerRelations = relations(users, ({ many }) => ({
+export const customerRelations = relations(customers, ({ many }) => ({
   orders: many(shipments),
 }));
 
 export const orderRelations = relations(shipments, ({ one }) => ({
-  customer: one(users, {
+  customer: one(customers, {
     fields: [shipments.customerId],
-    references: [users.id],
+    references: [customers.id],
   }),
 }));
