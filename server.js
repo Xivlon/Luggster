@@ -3,7 +3,6 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { etag } from 'hono/etag';
-import { uploadRoutes } from './routes.js';
 import { db } from './db.js';
 import { locations } from './schema.js';
 
@@ -651,6 +650,8 @@ async function getPhoto(bucket, key) {
 // ============================================================================
 // UPLOAD ROUTES
 // ============================================================================
+
+const uploadRoutes = new Hono();
 
 uploadRoutes.post('/', async (c) => {
   try {
