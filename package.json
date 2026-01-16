@@ -1,8 +1,8 @@
 {
-  "name": "luggagelink-backend",
+  "name": "order-creation-platform",
   "version": "1.0.0",
   "type": "module",
-  "description": "LuggageLink shipment management API for Cloudflare Workers with Hono, Neon PostgreSQL, Drizzle ORM, and R2 storage",
+  "description": "Order creation platform API for Cloudflare Workers with Hono, Neon PostgreSQL, and Drizzle ORM",
   "main": "server.js",
   "scripts": {
     "dev": "wrangler dev",
@@ -33,8 +33,7 @@
     "drizzle-orm",
     "neon",
     "postgresql",
-    "shipment",
-    "delivery",
+    "order-creation",
     "api"
   ],
   "engines": {
