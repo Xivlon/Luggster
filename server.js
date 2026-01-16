@@ -4,7 +4,7 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { etag } from 'hono/etag';
 import { db } from './db.js';
-import { locations } from './schema.js';
+import { locations, orders, customers } from './schema.js';
 
 // ============================================================================
 // FRONTEND HTML TEMPLATES
@@ -624,6 +624,44 @@ app.get('/api/locations', async (c) => {
     return c.json({ locations: result });
   } catch (err) {
     return c.json({ error: 'Failed to fetch locations', details: err.message }, 500);
+  }
+});
+
+// ============================================================================
+// SHIPMENTS ROUTES
+// ============================================================================
+
+// POST /api/shipments - Create a new shipment order
+app.post('/api/shipments', async (c) => {
+  try {
+    const body = await c.req.json();
+
+    // Validate required fields
+    if (!body.pickupAddress || !body.dropoffAddress || body.priceCents === undefined) {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    // Create order/shipment
+    const newOrder = await db.insert(orders).values({
+      customerId: body.customerId,
+      originAirport: body.originAirport || null,
+      destinationAirport: body.destinationAirport || null,
+      pickupAddress: body.pickupAddress,
+      pickupLatitude: body.pickupLatitude || null,
+      pickupLongitude: body.pickupLongitude || null,
+      pickupAt: body.pickupAt ? new Date(body.pickupAt) : new Date(),
+      dropoffAddress: body.dropoffAddress,
+      dropoffLatitude: body.dropoffLatitude || null,
+      dropoffLongitude: body.dropoffLongitude || null,
+      dropoffBy: body.dropoffBy ? new Date(body.dropoffBy) : new Date(),
+      priceCents: body.priceCents,
+      currency: body.currency || 'USD',
+      notes: body.notes || null
+    }).returning();
+
+    return c.json(newOrder[0], 201);
+  } catch (err) {
+    return c.json({ error: 'Shipment creation failed', details: err.message }, 500);
   }
 });
 
