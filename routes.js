@@ -64,7 +64,7 @@ authRoutes.post('/login', async (c) => {
       .limit(1);
 
     if (user.length === 0) {
-      return c.json({ error: 'User not found' }, 401);
+      return c.json({ error: 'Invalid credentials' }, 401);
     }
 
     // Verify password using bcrypt
