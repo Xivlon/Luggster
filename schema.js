@@ -26,7 +26,7 @@ export const locations = pgTable('locations', {
 });
 
 // 4. Orders Table (renamed from shipments for clarity)
-export const shipments = pgTable('orders', {
+export const orders = pgTable('orders', {
   id: uuid('id').defaultRandom().primaryKey(),
   customerId: uuid('customer_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   status: orderStatusEnum('status').notNull().default('PENDING'),
@@ -54,12 +54,12 @@ export const shipments = pgTable('orders', {
 
 // 5. Relations
 export const customerRelations = relations(users, ({ many }) => ({
-  orders: many(shipments),
+  orders: many(orders),
 }));
 
-export const orderRelations = relations(shipments, ({ one }) => ({
+export const orderRelations = relations(orders, ({ one }) => ({
   customer: one(users, {
-    fields: [shipments.customerId],
+    fields: [orders.customerId],
     references: [users.id],
   }),
 }));
