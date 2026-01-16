@@ -102,7 +102,7 @@ orderRoutes.post('/', async (c) => {
     }
 
     // Validate that customer exists
-    const customer = await db.select().from(users).where(eq(users.id, body.customerId)).limit(1);
+    const customer = await db.select({ id: users.id }).from(users).where(eq(users.id, body.customerId)).limit(1);
     if (customer.length === 0) {
       return c.json({ error: 'Customer not found' }, 404);
     }
