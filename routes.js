@@ -151,7 +151,7 @@ orderRoutes.get('/:id', async (c) => {
   }
 });
 
-// GET /api/orders?customerId=<id> - Get customer's orders
+// GET /api/orders/customer/:customerId - Get customer's orders
 orderRoutes.get('/customer/:customerId', async (c) => {
   try {
     const customerId = c.req.param('customerId');
